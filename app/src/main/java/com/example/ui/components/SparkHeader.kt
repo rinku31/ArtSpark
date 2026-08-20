@@ -67,7 +67,7 @@ fun SparkHeader(
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp
                 ),
-                color = CleanMutedText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -87,7 +87,7 @@ fun SparkHeader(
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.sp
                     ),
-                    color = CleanInkBlack,
+                    color = Color(0xFF141413),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 )
             }

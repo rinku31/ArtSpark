@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,6 +55,7 @@ fun MainScreen(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars),
         bottomBar = {
+            val borderColor = MaterialTheme.colorScheme.outlineVariant
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 0.dp,
@@ -62,7 +64,7 @@ fun MainScreen(
                     .testTag("bottom_nav_bar")
                     .drawBehind {
                         drawLine(
-                            color = CleanBorder,
+                            color = borderColor,
                             start = Offset(0f, 0f),
                             end = Offset(size.width, 0f),
                             strokeWidth = 1.dp.toPx()
@@ -91,11 +93,11 @@ fun MainScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = CleanInkBlack,
-                            selectedTextColor = CleanInkBlack,
+                            selectedIconColor = Color(0xFF141413),
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
                             indicatorColor = SparkYellow,
-                            unselectedIconColor = CleanMutedText.copy(alpha = 0.6f),
-                            unselectedTextColor = CleanMutedText.copy(alpha = 0.6f)
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         modifier = Modifier.testTag(section.testTag)
                     )

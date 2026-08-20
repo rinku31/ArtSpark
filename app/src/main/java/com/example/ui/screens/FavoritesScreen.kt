@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -140,13 +141,13 @@ fun FavoritesScreen(
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     ),
-                    color = CleanMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Surface(
                 shape = CircleShape,
-                color = CoralRed.copy(alpha = 0.12f)
+                color = CoralRed.copy(alpha = 0.15f)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Favorite,
@@ -179,13 +180,17 @@ fun FavoritesScreen(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = {
-                        Text("Search saved ideas...", style = MaterialTheme.typography.bodyMedium, color = CleanMutedText)
+                        Text(
+                            "Search saved ideas...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Search",
-                            tint = CleanMutedText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     },
@@ -195,7 +200,7 @@ fun FavoritesScreen(
                                 Icon(
                                     imageVector = Icons.Rounded.Clear,
                                     contentDescription = "Clear",
-                                    tint = CleanMutedText,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -209,8 +214,11 @@ fun FavoritesScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedBorderColor = CleanInkBlack,
-                        unfocusedBorderColor = CleanBorder
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        cursorColor = MaterialTheme.colorScheme.primary
                     ),
                     singleLine = true
                 )
@@ -237,12 +245,14 @@ fun FavoritesScreen(
                             },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SparkYellow,
-                                selectedLabelColor = CleanInkBlack
+                                selectedLabelColor = Color(0xFF141413),
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                labelColor = MaterialTheme.colorScheme.onSurface
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) SparkYellow else CleanBorder
+                                borderColor = if (isSelected) SparkYellow else MaterialTheme.colorScheme.outlineVariant
                             ),
                             shape = RoundedCornerShape(8.dp)
                         )
@@ -304,7 +314,7 @@ private fun FavoritePromptCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, CleanBorder),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -324,7 +334,7 @@ private fun FavoritePromptCard(
                 ) {
                     if (prompt.isCreativeGap) {
                         Surface(
-                            color = MintTeal.copy(alpha = 0.12f),
+                            color = MintTeal.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
@@ -340,7 +350,7 @@ private fun FavoritePromptCard(
                     }
 
                     Surface(
-                        color = CleanPillBorder.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
@@ -349,7 +359,7 @@ private fun FavoritePromptCard(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             ),
-                            color = CleanInkBlack,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -360,7 +370,7 @@ private fun FavoritePromptCard(
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 11.sp
                     ),
-                    color = CleanStoneGray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -395,7 +405,7 @@ private fun FavoritePromptCard(
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontStyle = FontStyle.Italic
                             ),
-                            color = CleanMutedText
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -413,14 +423,14 @@ private fun FavoritePromptCard(
                 OutlinedButton(
                     onClick = onRerollSimilar,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, CleanInkBlack),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Casino,
                         contentDescription = null,
-                        tint = CleanInkBlack,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -429,7 +439,7 @@ private fun FavoritePromptCard(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold
                         ),
-                        color = CleanInkBlack
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -446,7 +456,7 @@ private fun FavoritePromptCard(
                         Icon(
                             imageVector = Icons.Rounded.ContentCopy,
                             contentDescription = "Copy text",
-                            tint = CleanMutedText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -458,7 +468,7 @@ private fun FavoritePromptCard(
                         Icon(
                             imageVector = Icons.Rounded.Share,
                             contentDescription = "Share",
-                            tint = CleanMutedText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }

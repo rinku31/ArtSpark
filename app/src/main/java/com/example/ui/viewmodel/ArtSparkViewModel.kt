@@ -9,6 +9,7 @@ import com.example.data.local.UserPreferences
 import com.example.data.local.UserPreferencesRepository
 import com.example.generator.PromptGenerator
 import com.example.model.ArtPrompt
+import com.example.model.CategorySelectionMode
 import com.example.model.Difficulty
 import com.example.model.PromptCategory
 import com.example.model.PromptLockState
@@ -100,6 +101,41 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         val prompt = _currentPrompt.value
         val currentValue = prompt.getCategoryValue(category)
         _lockState.value = _lockState.value.toggleLock(category, currentValue)
+    }
+
+    fun setCategoryMode(category: PromptCategory, mode: CategorySelectionMode) {
+        val currentValue = _currentPrompt.value.getCategoryValue(category)
+        _lockState.value = _lockState.value.setCategoryMode(category, mode, fallbackValue = currentValue)
+    }
+
+    fun setCategorySelectedValue(category: PromptCategory, value: String) {
+        _lockState.value = _lockState.value.setSelectedValue(category, value)
+        applyDirectCategoryChange(category, value, isCustom = false)
+    }
+
+    fun setCategoryCustomValue(category: PromptCategory, value: String) {
+        _lockState.value = _lockState.value.setCustomValue(category, value)
+        if (value.isNotBlank()) {
+            applyDirectCategoryChange(category, value, isCustom = true)
+        }
+    }
+
+    private fun applyDirectCategoryChange(category: PromptCategory, value: String, isCustom: Boolean) {
+        val curr = _currentPrompt.value
+        val newCustomCats = if (isCustom) curr.customCategories + category else curr.customCategories - category
+        val updated = when (category) {
+            PromptCategory.TRAIT -> curr.copy(trait = value, customCategories = newCustomCats)
+            PromptCategory.SUBJECT -> curr.copy(subject = value, customCategories = newCustomCats)
+            PromptCategory.ACTION -> curr.copy(action = value, customCategories = newCustomCats)
+            PromptCategory.ENVIRONMENT -> curr.copy(environment = value, customCategories = newCustomCats)
+            PromptCategory.ATMOSPHERE -> curr.copy(atmosphere = value, customCategories = newCustomCats)
+            PromptCategory.STYLE -> curr.copy(style = value, customCategories = newCustomCats)
+            PromptCategory.CHALLENGE -> curr.copy(challenge = value, customCategories = newCustomCats)
+        }
+        _currentPrompt.value = updated
+        viewModelScope.launch {
+            repository.savePrompt(updated)
+        }
     }
 
     fun unlockAll() {

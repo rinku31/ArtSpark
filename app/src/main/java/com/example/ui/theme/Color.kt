@@ -37,10 +37,13 @@ val DarkCharcoalText = CleanInkBlack
 // Dark Theme - Clean Minimalist Dark Canvas
 val DarkMinimalBackground = Color(0xFF141413)
 val DarkMinimalSurface = Color(0xFF1F1E1B)
-val DarkMinimalSurfaceVariant = Color(0xFF2B2A26)
-val DarkMinimalBorder = Color(0xFF383630)
+val DarkMinimalSurfaceVariant = Color(0xFF2C2B27)
+val DarkMinimalBorder = Color(0xFF45433C)
+val DarkMinimalBorderSubtle = Color(0xFF383630)
 val DarkMinimalText = Color(0xFFFAF8F2)
-val DarkMinimalMuted = Color(0xFFA6A297)
+val DarkMinimalMuted = Color(0xFFB8B4A8)
+val DarkMinimalStone = Color(0xFF8F8B7F)
+
 val DarkVelvetBackground = DarkMinimalBackground
 val DarkVelvetSurface = DarkMinimalSurface
 val LightIvoryText = DarkMinimalText

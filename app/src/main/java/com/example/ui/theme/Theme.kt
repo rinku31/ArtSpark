@@ -36,16 +36,16 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = DarkMinimalText,
-    onPrimary = DarkMinimalBackground,
+    primary = SparkYellow,
+    onPrimary = Color(0xFF141413),
     primaryContainer = DarkMinimalSurfaceVariant,
     onPrimaryContainer = DarkMinimalText,
     secondary = MintTeal,
-    onSecondary = DarkMinimalBackground,
+    onSecondary = Color(0xFF141413),
     secondaryContainer = DarkMinimalSurfaceVariant,
     onSecondaryContainer = MintTeal,
     tertiary = SparkYellow,
-    onTertiary = DarkMinimalBackground,
+    onTertiary = Color(0xFF141413),
     tertiaryContainer = DarkMinimalSurfaceVariant,
     onTertiaryContainer = SparkYellow,
     background = DarkMinimalBackground,
@@ -55,7 +55,7 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = DarkMinimalSurfaceVariant,
     onSurfaceVariant = DarkMinimalMuted,
     outline = DarkMinimalBorder,
-    outlineVariant = DarkMinimalBorder.copy(alpha = 0.6f)
+    outlineVariant = DarkMinimalBorderSubtle
 )
 
 @Composable

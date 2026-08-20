@@ -80,7 +80,7 @@ fun DailySparkCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, CleanBorder),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -110,7 +110,7 @@ fun DailySparkCard(
                         Icon(
                             imageVector = Icons.Rounded.AutoAwesome,
                             contentDescription = null,
-                            tint = CleanInkBlack,
+                            tint = Color(0xFF141413),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -126,7 +126,7 @@ fun DailySparkCard(
                                     fontSize = 10.sp,
                                     letterSpacing = 1.sp
                                 ),
-                                color = CleanInkBlack
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -134,7 +134,7 @@ fun DailySparkCard(
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.sp
                                 ),
-                                color = CleanStoneGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
@@ -143,7 +143,7 @@ fun DailySparkCard(
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 12.sp
                             ),
-                            color = CleanMutedText,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -157,7 +157,7 @@ fun DailySparkCard(
                     Icon(
                         imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                         contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        tint = CleanInkBlack
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -190,7 +190,7 @@ fun DailySparkCard(
                                 fontStyle = FontStyle.Italic,
                                 fontWeight = FontWeight.Medium
                             ),
-                            color = CleanMutedText
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -208,7 +208,7 @@ fun DailySparkCard(
                             Icon(
                                 imageVector = Icons.Rounded.Share,
                                 contentDescription = "Share daily spark",
-                                tint = CleanInkBlack,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -218,8 +218,8 @@ fun DailySparkCard(
                         Button(
                             onClick = onLoadToWorkspace,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = CleanInkBlack,
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("load_daily_spark_button")

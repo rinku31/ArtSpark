@@ -130,7 +130,7 @@ fun SettingsDialog(
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = "Close",
-                        tint = CleanMutedText
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -149,7 +149,7 @@ fun SettingsDialog(
                             color = if (isSelected) SparkYellow else MaterialTheme.colorScheme.surface,
                             border = BorderStroke(
                                 1.dp,
-                                if (isSelected) SparkYellow else CleanPillBorder
+                                if (isSelected) SparkYellow else MaterialTheme.colorScheme.outlineVariant
                             ),
                             modifier = Modifier.weight(1f)
                         ) {
@@ -162,7 +162,7 @@ fun SettingsDialog(
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     ),
-                                    color = if (isSelected) CleanInkBlack else CleanMutedText,
+                                    color = if (isSelected) Color(0xFF141413) else MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -185,7 +185,7 @@ fun SettingsDialog(
                             color = if (isSelected) SparkYellow else MaterialTheme.colorScheme.surface,
                             border = BorderStroke(
                                 1.dp,
-                                if (isSelected) SparkYellow else CleanPillBorder
+                                if (isSelected) SparkYellow else MaterialTheme.colorScheme.outlineVariant
                             ),
                             modifier = Modifier.weight(1f)
                         ) {
@@ -198,7 +198,7 @@ fun SettingsDialog(
                                     style = MaterialTheme.typography.labelMedium.copy(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     ),
-                                    color = if (isSelected) CleanInkBlack else CleanMutedText
+                                    color = if (isSelected) Color(0xFF141413) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -212,7 +212,7 @@ fun SettingsDialog(
                     Text(
                         text = "Toggle elements included when rolling art ideas:",
                         style = MaterialTheme.typography.bodySmall,
-                        color = CleanMutedText
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     PromptCategory.values().forEach { cat ->
@@ -237,7 +237,7 @@ fun SettingsDialog(
                                 Text(
                                     text = cat.description,
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = CleanMutedText
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
@@ -245,7 +245,9 @@ fun SettingsDialog(
                                 checked = isEnabled,
                                 onCheckedChange = { viewModel.toggleCategoryEnabled(cat) },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = CleanInkBlack
+                                    checkedColor = SparkYellow,
+                                    checkmarkColor = Color(0xFF141413),
+                                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
@@ -269,7 +271,7 @@ fun SettingsDialog(
                         Text(
                             text = "Vibrate on rerolls and category locks",
                             style = MaterialTheme.typography.bodySmall,
-                            color = CleanMutedText
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -277,8 +279,10 @@ fun SettingsDialog(
                         checked = preferences.hapticsEnabled,
                         onCheckedChange = { viewModel.setHapticsEnabled(it) },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = CleanInkBlack
+                            checkedThumbColor = Color(0xFF141413),
+                            checkedTrackColor = SparkYellow,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     )
                 }
@@ -291,9 +295,9 @@ fun SettingsDialog(
                         onClick = { viewModel.clearHistory() },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, CleanBorder)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Text("Clear History", color = CleanInkBlack)
+                        Text("Clear History", color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     OutlinedButton(
@@ -313,7 +317,7 @@ fun SettingsDialog(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
-                border = BorderStroke(1.dp, CleanBorder),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -327,7 +331,7 @@ fun SettingsDialog(
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Black
                         ),
-                        color = CleanInkBlack
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -337,7 +341,7 @@ fun SettingsDialog(
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Bold
                         ),
-                        color = CleanInkBlack,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
 
@@ -346,7 +350,7 @@ fun SettingsDialog(
                     Text(
                         text = "An offline, distraction-free artist companion designed to ignite creative momentum instantly.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = CleanMutedText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
 
@@ -355,7 +359,7 @@ fun SettingsDialog(
                     Text(
                         text = "Version 1.0.0 • 100% Offline",
                         style = MaterialTheme.typography.labelSmall,
-                        color = CleanStoneGray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -368,10 +372,17 @@ fun SettingsDialog(
         AlertDialog(
             onDismissRequest = { showResetAllConfirm = false },
             title = {
-                Text("Reset Everything?", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    "Reset Everything?",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             },
             text = {
-                Text("This will permanently delete all saved favorites and history. Are you sure?")
+                Text(
+                    "This will permanently delete all saved favorites and history. Are you sure?",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             },
             confirmButton = {
                 TextButton(
@@ -391,7 +402,7 @@ fun SettingsDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showResetAllConfirm = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -412,7 +423,7 @@ private fun SectionBlock(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = CleanInkBlack,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))

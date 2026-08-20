@@ -122,7 +122,7 @@ fun HistoryScreen(
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     ),
-                    color = CleanMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -134,7 +134,7 @@ fun HistoryScreen(
                     Icon(
                         imageVector = Icons.Rounded.ClearAll,
                         contentDescription = "Clear history",
-                        tint = CleanMutedText
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -183,13 +183,15 @@ fun HistoryScreen(
             title = {
                 Text(
                     text = "Clear History?",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             text = {
                 Text(
                     text = "This will clear your recent generation history. Your saved favorites will remain safe.",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -210,7 +212,7 @@ fun HistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -239,7 +241,7 @@ private fun HistoryPromptCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, CleanBorder),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -259,7 +261,7 @@ private fun HistoryPromptCard(
                 ) {
                     if (prompt.isDailySpark) {
                         Surface(
-                            color = SparkYellow.copy(alpha = 0.35f),
+                            color = SparkYellow,
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
@@ -268,13 +270,13 @@ private fun HistoryPromptCard(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 ),
-                                color = CleanInkBlack,
+                                color = Color(0xFF141413),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     } else if (prompt.isCreativeGap) {
                         Surface(
-                            color = MintTeal.copy(alpha = 0.12f),
+                            color = MintTeal.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
@@ -290,7 +292,7 @@ private fun HistoryPromptCard(
                     }
 
                     Surface(
-                        color = CleanPillBorder.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
@@ -299,7 +301,7 @@ private fun HistoryPromptCard(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             ),
-                            color = CleanInkBlack,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -308,7 +310,7 @@ private fun HistoryPromptCard(
                 Text(
                     text = formattedDate,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = CleanStoneGray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -340,7 +342,7 @@ private fun HistoryPromptCard(
                     Text(
                         text = "Challenge: ${prompt.challenge}",
                         style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
-                        color = CleanMutedText
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -356,21 +358,21 @@ private fun HistoryPromptCard(
                 OutlinedButton(
                     onClick = onRerollSimilar,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, CleanInkBlack),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Casino,
                         contentDescription = null,
-                        tint = CleanInkBlack,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Reroll Similar",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = CleanInkBlack
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -385,7 +387,7 @@ private fun HistoryPromptCard(
                         Icon(
                             imageVector = if (prompt.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                             contentDescription = "Save favorite",
-                            tint = if (prompt.isFavorite) CoralRed else CleanMutedText,
+                            tint = if (prompt.isFavorite) CoralRed else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -399,7 +401,7 @@ private fun HistoryPromptCard(
                         Icon(
                             imageVector = Icons.Rounded.ContentCopy,
                             contentDescription = "Copy text",
-                            tint = CleanMutedText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -411,7 +413,7 @@ private fun HistoryPromptCard(
                         Icon(
                             imageVector = Icons.Rounded.Share,
                             contentDescription = "Share",
-                            tint = CleanMutedText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }

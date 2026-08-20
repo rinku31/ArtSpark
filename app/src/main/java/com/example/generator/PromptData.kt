@@ -117,4 +117,14 @@ object PromptData {
         "a lantern fueled by glowing starlight",
         "a compass pointing toward whatever you miss most"
     )
+
+    fun getOptionsForCategory(category: com.example.model.PromptCategory): List<String> = when (category) {
+        com.example.model.PromptCategory.TRAIT -> traits
+        com.example.model.PromptCategory.SUBJECT -> subjects
+        com.example.model.PromptCategory.ACTION -> actions
+        com.example.model.PromptCategory.ENVIRONMENT -> environments
+        com.example.model.PromptCategory.ATMOSPHERE -> atmospheres
+        com.example.model.PromptCategory.STYLE -> styles
+        com.example.model.PromptCategory.CHALLENGE -> challenges
+    }
 }

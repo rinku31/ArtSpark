@@ -163,7 +163,7 @@ fun DiscoverScreen(
                         title = "Classic Spark",
                         icon = Icons.Rounded.Palette,
                         isSelected = !isCreativeGap,
-                        activeColor = CleanInkBlack,
+                        activeColor = MaterialTheme.colorScheme.onSurface,
                         onClick = {
                             if (isCreativeGap) {
                                 triggerHaptic()
@@ -202,7 +202,7 @@ fun DiscoverScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         ),
-                        color = CleanMutedText
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Difficulty.values().forEach { diff ->
@@ -224,12 +224,14 @@ fun DiscoverScreen(
                             },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SparkYellow,
-                                selectedLabelColor = CleanInkBlack
+                                selectedLabelColor = Color(0xFF141413),
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                labelColor = MaterialTheme.colorScheme.onSurface
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) SparkYellow else CleanBorder
+                                borderColor = if (isSelected) SparkYellow else MaterialTheme.colorScheme.outlineVariant
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("difficulty_${diff.name.lowercase()}")
@@ -267,7 +269,7 @@ fun DiscoverScreen(
             }
         }
 
-        // Advanced Lock Pill Controls (from Design HTML spec)
+        // Category Controls and Locks
         item {
             Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
                 LockControlsCard(
@@ -282,6 +284,18 @@ fun DiscoverScreen(
                         triggerHaptic()
                         viewModel.toggleCategoryLock(cat)
                     },
+                    onSetCategoryMode = { cat, mode ->
+                        triggerHaptic()
+                        viewModel.setCategoryMode(cat, mode)
+                    },
+                    onSetSelectedValue = { cat, value ->
+                        triggerHaptic()
+                        viewModel.setCategorySelectedValue(cat, value)
+                    },
+                    onSetCustomValue = { cat, value ->
+                        triggerHaptic()
+                        viewModel.setCategoryCustomValue(cat, value)
+                    },
                     onUnlockAll = {
                         triggerHaptic()
                         viewModel.unlockAll()
@@ -290,7 +304,7 @@ fun DiscoverScreen(
             }
         }
 
-        // Primary Action Controls (Save + Reroll Split Row directly from Design Spec)
+        // Primary Action Controls (Save + Reroll Split Row)
         item {
             Column(
                 modifier = Modifier
@@ -302,7 +316,7 @@ fun DiscoverScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Left 1x: Save button (Clean border-2, rounded-2xl)
+                    // Left 1x: Save button
                     OutlinedButton(
                         onClick = {
                             triggerHaptic()
@@ -313,10 +327,10 @@ fun DiscoverScreen(
                             .height(56.dp)
                             .testTag("save_action_button"),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(2.dp, if (currentPrompt.isFavorite) CoralRed else CleanInkBlack),
+                        border = BorderStroke(2.dp, if (currentPrompt.isFavorite) CoralRed else MaterialTheme.colorScheme.onSurface),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (currentPrompt.isFavorite) CoralRed.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
-                            contentColor = if (currentPrompt.isFavorite) CoralRed else CleanInkBlack
+                            containerColor = if (currentPrompt.isFavorite) CoralRed.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
+                            contentColor = if (currentPrompt.isFavorite) CoralRed else MaterialTheme.colorScheme.onSurface
                         )
                     ) {
                         Row(
@@ -326,7 +340,7 @@ fun DiscoverScreen(
                             Icon(
                                 imageVector = if (currentPrompt.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                 contentDescription = if (currentPrompt.isFavorite) "Saved" else "Save",
-                                tint = if (currentPrompt.isFavorite) CoralRed else CleanInkBlack,
+                                tint = if (currentPrompt.isFavorite) CoralRed else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -340,7 +354,7 @@ fun DiscoverScreen(
                         }
                     }
 
-                    // Right 2x: Reroll Spark button (Black container, rounded-2xl, shadow)
+                    // Right 2x: Reroll Spark button
                     Button(
                         onClick = {
                             triggerHaptic()
@@ -352,8 +366,8 @@ fun DiscoverScreen(
                             .testTag("reroll_button"),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CleanInkBlack,
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         elevation = ButtonDefaults.buttonElevation(
                             defaultElevation = 4.dp,
@@ -390,7 +404,7 @@ fun DiscoverScreen(
                         fontStyle = FontStyle.Italic,
                         fontWeight = FontWeight.Medium
                     ),
-                    color = CleanMutedText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
             }
@@ -410,10 +424,10 @@ private fun ModeTabItem(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) CleanCanvasBackground else Color.Transparent,
+        color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
         border = BorderStroke(
             1.dp,
-            if (isSelected) CleanPillBorder else Color.Transparent
+            if (isSelected) MaterialTheme.colorScheme.outlineVariant else Color.Transparent
         ),
         modifier = modifier.height(38.dp)
     ) {
@@ -425,7 +439,7 @@ private fun ModeTabItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) activeColor else CleanMutedText,
+                tint = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -434,7 +448,7 @@ private fun ModeTabItem(
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 ),
-                color = if (isSelected) CleanInkBlack else CleanMutedText
+                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

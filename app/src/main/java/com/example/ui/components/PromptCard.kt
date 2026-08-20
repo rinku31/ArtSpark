@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -110,16 +111,44 @@ fun PromptCard(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.6.sp
                         ),
-                        color = CleanStoneGray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        if (prompt.customCategories.isNotEmpty()) {
+                            Surface(
+                                color = MintTeal.copy(alpha = 0.15f),
+                                shape = CircleShape
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Edit,
+                                        contentDescription = "Customized",
+                                        tint = MintTeal,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "${prompt.customCategories.size} custom",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        color = MintTeal
+                                    )
+                                }
+                            }
+                        }
+
                         if (lockState.lockedCategories.isNotEmpty()) {
                             Surface(
-                                color = CoralRed.copy(alpha = 0.12f),
+                                color = CoralRed.copy(alpha = 0.15f),
                                 shape = CircleShape
                             ) {
                                 Row(
@@ -179,7 +208,7 @@ fun PromptCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Main Prompt Text (Styled with distinctive inline highlights)
+                // Main Prompt Text
                 if (prompt.isCreativeGap && !prompt.gapTemplate.isNullOrBlank()) {
                     CreativeGapContent(
                         template = prompt.gapTemplate,
@@ -190,11 +219,11 @@ fun PromptCard(
                     CleanMinimalPromptContent(prompt = prompt)
                 }
 
-                // Divider line matching #F0EEE4
+                // Divider line
                 Spacer(modifier = Modifier.height(18.dp))
                 HorizontalDivider(
                     thickness = 1.dp,
-                    color = CleanDivider
+                    color = MaterialTheme.colorScheme.outlineVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -212,7 +241,7 @@ fun PromptCard(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.5.sp
                                 ),
-                                color = CleanStoneGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -245,7 +274,7 @@ fun PromptCard(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.5.sp
                                 ),
-                                color = CleanStoneGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,

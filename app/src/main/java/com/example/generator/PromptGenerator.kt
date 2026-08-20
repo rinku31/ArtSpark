@@ -20,53 +20,74 @@ object PromptGenerator {
         enabledCategories: Set<PromptCategory> = PromptCategory.values().toSet(),
         random: Random = Random.Default
     ): ArtPrompt {
-        val trait = if (lockState.isLocked(PromptCategory.TRAIT)) {
-            lockState.lockedValues[PromptCategory.TRAIT] ?: PromptData.traits.random(random)
+        val customCategories = mutableSetOf<PromptCategory>()
+
+        val trait = if (lockState.isCustom(PromptCategory.TRAIT)) {
+            customCategories.add(PromptCategory.TRAIT)
+            lockState.getCustomValue(PromptCategory.TRAIT)
+        } else if (lockState.isLocked(PromptCategory.TRAIT)) {
+            lockState.getSelectedValue(PromptCategory.TRAIT).ifBlank { PromptData.traits.random(random) }
         } else if (PromptCategory.TRAIT in enabledCategories) {
             PromptData.traits.random(random)
         } else ""
 
-        val subject = if (lockState.isLocked(PromptCategory.SUBJECT)) {
-            lockState.lockedValues[PromptCategory.SUBJECT] ?: PromptData.subjects.random(random)
+        val subject = if (lockState.isCustom(PromptCategory.SUBJECT)) {
+            customCategories.add(PromptCategory.SUBJECT)
+            lockState.getCustomValue(PromptCategory.SUBJECT)
+        } else if (lockState.isLocked(PromptCategory.SUBJECT)) {
+            lockState.getSelectedValue(PromptCategory.SUBJECT).ifBlank { PromptData.subjects.random(random) }
         } else if (PromptCategory.SUBJECT in enabledCategories) {
             PromptData.subjects.random(random)
         } else "Creature"
 
-        val action = if (lockState.isLocked(PromptCategory.ACTION)) {
-            lockState.lockedValues[PromptCategory.ACTION] ?: PromptData.actions.random(random)
+        val action = if (lockState.isCustom(PromptCategory.ACTION)) {
+            customCategories.add(PromptCategory.ACTION)
+            lockState.getCustomValue(PromptCategory.ACTION)
+        } else if (lockState.isLocked(PromptCategory.ACTION)) {
+            lockState.getSelectedValue(PromptCategory.ACTION).ifBlank { PromptData.actions.random(random) }
         } else if (PromptCategory.ACTION in enabledCategories && difficulty != Difficulty.EASY) {
             PromptData.actions.random(random)
         } else if (difficulty == Difficulty.EASY) {
-            // Keep easy prompts lightweight
             listOf("resting in", "observing", "guarding", "exploring").random(random)
         } else ""
 
-        val environment = if (lockState.isLocked(PromptCategory.ENVIRONMENT)) {
-            lockState.lockedValues[PromptCategory.ENVIRONMENT] ?: PromptData.environments.random(random)
+        val environment = if (lockState.isCustom(PromptCategory.ENVIRONMENT)) {
+            customCategories.add(PromptCategory.ENVIRONMENT)
+            lockState.getCustomValue(PromptCategory.ENVIRONMENT)
+        } else if (lockState.isLocked(PromptCategory.ENVIRONMENT)) {
+            lockState.getSelectedValue(PromptCategory.ENVIRONMENT).ifBlank { PromptData.environments.random(random) }
         } else if (PromptCategory.ENVIRONMENT in enabledCategories) {
             PromptData.environments.random(random)
         } else ""
 
-        val atmosphere = if (lockState.isLocked(PromptCategory.ATMOSPHERE)) {
-            lockState.lockedValues[PromptCategory.ATMOSPHERE] ?: PromptData.atmospheres.random(random)
+        val atmosphere = if (lockState.isCustom(PromptCategory.ATMOSPHERE)) {
+            customCategories.add(PromptCategory.ATMOSPHERE)
+            lockState.getCustomValue(PromptCategory.ATMOSPHERE)
+        } else if (lockState.isLocked(PromptCategory.ATMOSPHERE)) {
+            lockState.getSelectedValue(PromptCategory.ATMOSPHERE).ifBlank { PromptData.atmospheres.random(random) }
         } else if (PromptCategory.ATMOSPHERE in enabledCategories && difficulty != Difficulty.EASY) {
             PromptData.atmospheres.random(random)
         } else if (difficulty == Difficulty.EASY && random.nextBoolean()) {
             listOf("a warm sunny afternoon", "a starry night", "a peaceful sunset").random(random)
         } else ""
 
-        val style = if (lockState.isLocked(PromptCategory.STYLE)) {
-            lockState.lockedValues[PromptCategory.STYLE] ?: PromptData.styles.random(random)
+        val style = if (lockState.isCustom(PromptCategory.STYLE)) {
+            customCategories.add(PromptCategory.STYLE)
+            lockState.getCustomValue(PromptCategory.STYLE)
+        } else if (lockState.isLocked(PromptCategory.STYLE)) {
+            lockState.getSelectedValue(PromptCategory.STYLE).ifBlank { PromptData.styles.random(random) }
         } else if (PromptCategory.STYLE in enabledCategories) {
             PromptData.styles.random(random)
         } else ""
 
-        val challenge = if (lockState.isLocked(PromptCategory.CHALLENGE)) {
-            lockState.lockedValues[PromptCategory.CHALLENGE] ?: PromptData.challenges.random(random)
+        val challenge = if (lockState.isCustom(PromptCategory.CHALLENGE)) {
+            customCategories.add(PromptCategory.CHALLENGE)
+            lockState.getCustomValue(PromptCategory.CHALLENGE)
+        } else if (lockState.isLocked(PromptCategory.CHALLENGE)) {
+            lockState.getSelectedValue(PromptCategory.CHALLENGE).ifBlank { PromptData.challenges.random(random) }
         } else if (PromptCategory.CHALLENGE in enabledCategories) {
             when (difficulty) {
                 Difficulty.EASY -> {
-                    // Easier challenges
                     listOf(
                         "Use only three colors",
                         "Draw in 15 minutes",
@@ -76,7 +97,6 @@ object PromptGenerator {
                 }
                 Difficulty.MEDIUM -> PromptData.challenges.random(random)
                 Difficulty.HARD -> {
-                    // Stricter challenges
                     listOf(
                         "Use your non-dominant hand for the initial sketch",
                         "No erasing allowed + blue ink only",
@@ -125,7 +145,8 @@ object PromptGenerator {
             isCreativeGap = isCreativeGap,
             gapTemplate = gapTemplate,
             difficulty = difficulty,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            customCategories = customCategories
         )
     }
 
