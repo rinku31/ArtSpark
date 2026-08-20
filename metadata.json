@@ -1,0 +1,6 @@
+{
+  "name": "ArtSpark",
+  "description": "An art idea randomizer designed to help artists overcome creative blocks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
