@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.generator.PromptSentenceBuilder
+
 data class ArtPrompt(
     val id: Long = 0,
     val trait: String = "",
@@ -9,6 +11,7 @@ data class ArtPrompt(
     val atmosphere: String = "",
     val style: String = "",
     val challenge: String = "",
+    val storyHook: String = "",
     val isCreativeGap: Boolean = false,
     val gapTemplate: String? = null,
     val difficulty: Difficulty = Difficulty.MEDIUM,
@@ -18,105 +21,96 @@ data class ArtPrompt(
     val customCategories: Set<PromptCategory> = emptySet()
 ) {
     /**
-     * Builds the main narrative text for the prompt.
+     * Structured phrase for the Subject section.
+     * e.g., "An awestruck, inquisitive underwater explorer"
+     */
+    val subjectPhrase: String
+        get() = PromptSentenceBuilder.buildSubjectPhrase(trait, subject, capitalize = true)
+
+    /**
+     * Structured phrase for the Scene section.
+     * e.g., "Discovering ancient scrolls inside a sunken library"
+     */
+    val scenePhrase: String
+        get() = PromptSentenceBuilder.buildScenePhrase(action, environment)
+
+    /**
+     * Structured phrase for the Atmosphere section.
+     * e.g., "Golden sunlight filtering through deep blue water"
+     */
+    val atmospherePhrase: String
+        get() = PromptSentenceBuilder.buildAtmospherePhrase(atmosphere)
+
+    /**
+     * Structured phrase for the Style section.
+     * e.g., "Chiaroscuro Digital Painting"
+     */
+    val stylePhrase: String
+        get() = PromptSentenceBuilder.buildStylePhrase(style)
+
+    /**
+     * Structured phrase for the Challenge section.
+     */
+    val challengePhrase: String
+        get() = challenge.trim()
+
+    /**
+     * Computed story hook if not provided explicitly.
+     */
+    val displayStoryHook: String
+        get() = if (storyHook.isNotBlank()) storyHook else PromptSentenceBuilder.generateStoryHook(subject, action, environment, id)
+
+    /**
+     * Builds the main narrative text using intelligent grammar templates.
      */
     val narrativeText: String
         get() {
             if (isCreativeGap && !gapTemplate.isNullOrBlank()) {
                 return gapTemplate
             }
-
-            val parts = mutableListOf<String>()
-            val subjectPhrase = buildString {
-                val subTrim = subject.trim()
-                val traitTrim = trait.trim()
-                if (traitTrim.isNotBlank() && subTrim.isNotBlank()) {
-                    if (subTrim.startsWith("a ", ignoreCase = true) ||
-                        subTrim.startsWith("an ", ignoreCase = true) ||
-                        subTrim.startsWith("the ", ignoreCase = true)) {
-                        append("$traitTrim $subTrim")
-                    } else {
-                        val firstChar = traitTrim.firstOrNull()?.lowercaseChar() ?: 'a'
-                        val article = if (firstChar in listOf('a', 'e', 'i', 'o', 'u')) "An" else "A"
-                        append("$article ${traitTrim.lowercase()} $subTrim")
-                    }
-                } else if (subTrim.isNotBlank()) {
-                    if (subTrim.startsWith("a ", ignoreCase = true) ||
-                        subTrim.startsWith("an ", ignoreCase = true) ||
-                        subTrim.startsWith("the ", ignoreCase = true)) {
-                        append(subTrim)
-                    } else {
-                        val firstChar = subTrim.firstOrNull()?.lowercaseChar() ?: 'a'
-                        val article = if (firstChar in listOf('a', 'e', 'i', 'o', 'u')) "An" else "A"
-                        append("$article $subTrim")
-                    }
-                }
-            }
-
-            if (subjectPhrase.isNotBlank()) parts.add(subjectPhrase)
-            if (action.isNotBlank()) parts.add(action.trim())
-            if (environment.isNotBlank()) {
-                val env = environment.trim()
-                if (env.startsWith("in ", ignoreCase = true) ||
-                    env.startsWith("at ", ignoreCase = true) ||
-                    env.startsWith("under ", ignoreCase = true) ||
-                    env.startsWith("on ", ignoreCase = true) ||
-                    env.startsWith("inside ", ignoreCase = true) ||
-                    env.startsWith("through ", ignoreCase = true)) {
-                    parts.add(env)
-                } else {
-                    parts.add("in $env")
-                }
-            }
-            if (atmosphere.isNotBlank()) {
-                val atm = atmosphere.trim()
-                if (atm.startsWith("during ", ignoreCase = true) ||
-                    atm.startsWith("under ", ignoreCase = true) ||
-                    atm.startsWith("in ", ignoreCase = true) ||
-                    atm.startsWith("with ", ignoreCase = true)) {
-                    parts.add(atm)
-                } else {
-                    parts.add("during $atm")
-                }
-            }
-            if (style.isNotBlank()) {
-                val st = style.trim()
-                if (st.startsWith("in ", ignoreCase = true) ||
-                    st.startsWith("using ", ignoreCase = true)) {
-                    parts.add(st)
-                } else {
-                    parts.add("in $st")
-                }
-            }
-
-            return if (parts.isNotEmpty()) {
-                val joined = parts.joinToString(" ")
-                if (joined.endsWith(".")) joined else "$joined."
-            } else {
-                "An inspiring spark waiting to be drawn."
-            }
+            return PromptSentenceBuilder.buildFullNarrative(
+                trait = trait,
+                subject = subject,
+                action = action,
+                environment = environment,
+                atmosphere = atmosphere,
+                style = style
+            )
         }
 
     /**
-     * Formats the prompt text for native Android sharing sheet.
+     * Formats the structured prompt text for native sharing.
      */
     fun toShareText(): String {
         return buildString {
-            append("ARTSPARK ✨\n\n")
+            append("✨ ARTSPARK INSPIRATION ✨\n\n")
             if (isDailySpark) {
-                append("🌟 Daily Spark of the Day:\n")
-            } else if (isCreativeGap) {
-                append("🎨 Creative Gap Idea:\n")
-            } else {
-                append("Today's Art Idea:\n")
+                append("🌟 Daily Spark of the Day\n\n")
             }
-            append("\"$narrativeText\"\n\n")
-            if (style.isNotBlank() && isCreativeGap) {
-                append("Style:\n\"$style\"\n\n")
+
+            append("SUBJECT:\n$subjectPhrase\n\n")
+
+            if (scenePhrase.isNotBlank()) {
+                append("SCENE:\n$scenePhrase\n\n")
             }
-            if (challenge.isNotBlank()) {
-                append("Challenge:\n\"$challenge\"\n\n")
+
+            if (atmospherePhrase.isNotBlank()) {
+                append("ATMOSPHERE:\n$atmospherePhrase\n\n")
             }
+
+            if (stylePhrase.isNotBlank()) {
+                append("STYLE:\n$stylePhrase\n\n")
+            }
+
+            if (challengePhrase.isNotBlank()) {
+                append("CHALLENGE:\n$challengePhrase\n\n")
+            }
+
+            if (displayStoryHook.isNotBlank()) {
+                append("STORY HOOK:\n$displayStoryHook\n\n")
+            }
+
+            append("Full Prompt:\n\"$narrativeText\"\n\n")
             append("Break the block. Make something with ArtSpark!")
         }
     }
@@ -136,3 +130,4 @@ data class ArtPrompt(
         }
     }
 }
+

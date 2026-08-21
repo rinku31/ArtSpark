@@ -35,9 +35,11 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -47,6 +49,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,9 +67,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.ArtPrompt
 import com.example.model.Difficulty
 import com.example.ui.components.DailySparkCard
-import androidx.compose.material.icons.rounded.Lightbulb
 import com.example.ui.components.LockControlsCard
 import com.example.ui.components.PromptCard
+import com.example.ui.components.ShareBottomSheet
 import com.example.ui.components.SparkHeader
 import com.example.ui.theme.CleanBorder
 import com.example.ui.theme.CleanCanvasBackground
@@ -77,6 +82,7 @@ import com.example.ui.theme.MintTeal
 import com.example.ui.theme.SparkYellow
 import com.example.ui.viewmodel.ArtSparkViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     viewModel: ArtSparkViewModel,
@@ -92,6 +98,7 @@ fun DiscoverScreen(
     val difficulty by viewModel.selectedDifficulty.collectAsStateWithLifecycle()
     val isAdvancedOpen by viewModel.isAdvancedOpen.collectAsStateWithLifecycle()
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
+    var sharePromptTarget by remember { mutableStateOf<ArtPrompt?>(null) }
 
     fun triggerHaptic() {
         if (!prefs.hapticsEnabled) return
@@ -112,13 +119,7 @@ fun DiscoverScreen(
     }
 
     fun sharePrompt(prompt: ArtPrompt) {
-        val sendIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, prompt.toShareText())
-            type = "text/plain"
-        }
-        val shareIntent = Intent.createChooser(sendIntent, "Share Art Idea")
-        context.startActivity(shareIntent)
+        sharePromptTarget = prompt
     }
 
     LazyColumn(
@@ -451,6 +452,13 @@ fun DiscoverScreen(
                 )
             }
         }
+    }
+
+    sharePromptTarget?.let { promptToShare ->
+        ShareBottomSheet(
+            prompt = promptToShare,
+            onDismiss = { sharePromptTarget = null }
+        )
     }
 }
 

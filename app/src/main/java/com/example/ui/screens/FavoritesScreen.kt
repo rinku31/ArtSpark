@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.ArtPrompt
 import com.example.ui.components.EmptyState
+import com.example.ui.components.ShareBottomSheet
 import com.example.ui.theme.CleanBorder
 import com.example.ui.theme.CleanInkBlack
 import com.example.ui.theme.CleanMutedText
@@ -72,6 +74,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
     viewModel: ArtSparkViewModel,
@@ -82,15 +85,10 @@ fun FavoritesScreen(
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
+    var sharePromptTarget by remember { mutableStateOf<ArtPrompt?>(null) }
 
     fun sharePrompt(prompt: ArtPrompt) {
-        val sendIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, prompt.toShareText())
-            type = "text/plain"
-        }
-        val shareIntent = Intent.createChooser(sendIntent, "Share Art Idea")
-        context.startActivity(shareIntent)
+        sharePromptTarget = prompt
     }
 
     val filteredFavorites = favorites.filter { prompt ->
@@ -288,6 +286,13 @@ fun FavoritesScreen(
                     )
                 }
             }
+        }
+
+        sharePromptTarget?.let { promptToShare ->
+            ShareBottomSheet(
+                prompt = promptToShare,
+                onDismiss = { sharePromptTarget = null }
+            )
         }
     }
 }

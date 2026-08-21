@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,11 +23,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Flare
+import androidx.compose.material.icons.rounded.FormatQuote
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -49,7 +61,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,9 +68,6 @@ import com.example.generator.PromptData
 import com.example.model.ArtPrompt
 import com.example.model.PromptLockState
 import com.example.ui.theme.CleanBorder
-import com.example.ui.theme.CleanDivider
-import com.example.ui.theme.CleanInkBlack
-import com.example.ui.theme.CleanStoneGray
 import com.example.ui.theme.CoralRed
 import com.example.ui.theme.IrisPurple
 import com.example.ui.theme.MintTeal
@@ -75,6 +83,7 @@ fun PromptCard(
 ) {
     val clipboardManager = LocalClipboardManager.current
     var showGapInspiration by remember { mutableStateOf(false) }
+    var showFullNarrative by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         Card(
@@ -94,9 +103,9 @@ fun PromptCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 24.dp)
+                    .padding(horizontal = 22.dp, vertical = 22.dp)
             ) {
-                // Top Row: Section Tag & Locked Status
+                // Top Row: Section Tag & Status Indicators
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -105,7 +114,7 @@ fun PromptCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (prompt.isCreativeGap) "CREATIVE GAP PROMPT" else "YOUR PROMPT",
+                        text = if (prompt.isCreativeGap) "CREATIVE GAP INSPIRATION" else "INSPIRATION BOARD",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -176,7 +185,7 @@ fun PromptCard(
 
                         IconButton(
                             onClick = {
-                                clipboardManager.setText(AnnotatedString(prompt.narrativeText))
+                                clipboardManager.setText(AnnotatedString(prompt.toShareText()))
                             },
                             modifier = Modifier
                                 .size(28.dp)
@@ -208,7 +217,7 @@ fun PromptCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Main Prompt Text
+                // Mode: Creative Gap vs Structured Inspiration Board
                 if (prompt.isCreativeGap && !prompt.gapTemplate.isNullOrBlank()) {
                     CreativeGapContent(
                         template = prompt.gapTemplate,
@@ -216,92 +225,16 @@ fun PromptCard(
                         onToggleInspiration = { showGapInspiration = !showGapInspiration }
                     )
                 } else {
-                    CleanMinimalPromptContent(prompt = prompt)
-                }
-
-                // Divider line
-                Spacer(modifier = Modifier.height(18.dp))
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Challenge & Style Block
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (prompt.challenge.isNotBlank()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "CHALLENGE",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.5.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(SparkYellow)
-                                )
-                                Text(
-                                    text = prompt.challenge,
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 15.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-
-                    if (prompt.style.isNotBlank()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "MEDIUM / STYLE",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.5.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(IrisPurple)
-                                )
-                                Text(
-                                    text = prompt.style,
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    ),
-                                    color = IrisPurple
-                                )
-                            }
-                        }
-                    }
+                    StructuredInspirationBoard(
+                        prompt = prompt,
+                        showFullNarrative = showFullNarrative,
+                        onToggleNarrative = { showFullNarrative = !showFullNarrative }
+                    )
                 }
             }
         }
 
-        // Floating Difficulty Badge at top-left matching -top-3 left-8
+        // Floating Difficulty Badge at top-left
         Surface(
             shape = CircleShape,
             color = MintTeal,
@@ -323,86 +256,303 @@ fun PromptCard(
     }
 }
 
+/**
+ * Clean, structured visual inspiration board replacing wall of text.
+ */
 @Composable
-private fun CleanMinimalPromptContent(prompt: ArtPrompt) {
-    val promptText = buildAnnotatedString {
-        append("A ")
-
-        // Subject + Trait in Bold Coral Red (#FF6B6B)
-        withStyle(
-            SpanStyle(
-                color = CoralRed,
-                fontWeight = FontWeight.Black
-            )
+private fun StructuredInspirationBoard(
+    prompt: ArtPrompt,
+    showFullNarrative: Boolean,
+    onToggleNarrative: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // --- 1. SUBJECT SECTION (Hero Focus) ---
+        SectionBlock(
+            label = "SUBJECT",
+            labelColor = CoralRed,
+            icon = Icons.Rounded.Person
         ) {
-            val traitSubj = buildString {
-                if (prompt.trait.isNotBlank()) {
-                    append(prompt.trait.lowercase())
-                    append(" ")
-                }
-                append(prompt.subject.lowercase())
-            }
-            append(traitSubj)
+            Text(
+                text = prompt.subjectPhrase,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.Black,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
 
-        // Action and Environment
-        if (prompt.action.isNotBlank() || prompt.environment.isNotBlank()) {
-            append(" ")
-            if (prompt.action.isNotBlank()) {
-                append(prompt.action.lowercase())
-                append(" ")
+        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+
+        // --- 2. SCENE SECTION ---
+        if (prompt.scenePhrase.isNotBlank()) {
+            SectionBlock(
+                label = "SCENE",
+                labelColor = MintTeal,
+                icon = Icons.Rounded.Explore
+            ) {
+                Text(
+                    text = prompt.scenePhrase,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                )
             }
-            if (prompt.environment.isNotBlank()) {
-                withStyle(
-                    SpanStyle(
-                        fontStyle = FontStyle.Italic,
-                        fontWeight = FontWeight.Medium
-                    )
+
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        }
+
+        // --- 3. ATMOSPHERE SECTION ---
+        if (prompt.atmospherePhrase.isNotBlank()) {
+            SectionBlock(
+                label = "ATMOSPHERE",
+                labelColor = Color(0xFFEAB308),
+                icon = Icons.Rounded.WbSunny
+            ) {
+                Text(
+                    text = prompt.atmospherePhrase,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 15.sp,
+                        lineHeight = 21.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                )
+            }
+
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        }
+
+        // --- 4. STYLE & CHALLENGE BLOCKS ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Style Card
+            if (prompt.stylePhrase.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = IrisPurple.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, IrisPurple.copy(alpha = 0.25f))
                 ) {
-                    append(prompt.environment.lowercase())
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Palette,
+                                contentDescription = null,
+                                tint = IrisPurple,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "STYLE",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp
+                                ),
+                                color = IrisPurple
+                            )
+                        }
+                        Text(
+                            text = prompt.stylePhrase,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            // Challenge Card
+            if (prompt.challengePhrase.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = SparkYellow.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, SparkYellow.copy(alpha = 0.35f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Flare,
+                                contentDescription = null,
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "CHALLENGE",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp
+                                ),
+                                color = Color(0xFFD97706)
+                            )
+                        }
+                        Text(
+                            text = prompt.challengePhrase,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
 
-        // Atmosphere with Teal underline (#4ECDC4)
-        if (prompt.atmosphere.isNotBlank()) {
-            append(" during ")
-            withStyle(
-                SpanStyle(
-                    color = MintTeal,
-                    fontWeight = FontWeight.SemiBold,
-                    textDecoration = TextDecoration.Underline
-                )
+        // --- 5. OPTIONAL STORY HOOK ---
+        if (prompt.displayStoryHook.isNotBlank()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
             ) {
-                append(prompt.atmosphere.lowercase())
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lightbulb,
+                        contentDescription = null,
+                        tint = SparkYellow,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "STORY HOOK",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.2.sp
+                            ),
+                            color = Color(0xFFD97706)
+                        )
+                        Text(
+                            text = prompt.displayStoryHook,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                        )
+                    }
+                }
             }
         }
 
-        // Style in Bold Purple (#6C5CE7)
-        if (prompt.style.isNotBlank()) {
-            append(" in a ")
-            withStyle(
-                SpanStyle(
-                    color = IrisPurple,
-                    fontWeight = FontWeight.Bold
-                )
-            ) {
-                append(prompt.style.lowercase())
-            }
+        // Optional Toggle to inspect full continuous narrative
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggleNarrative() }
+                .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (showFullNarrative) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = if (showFullNarrative) "Hide full sentence" else "View full narrative sentence",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
         }
 
-        append(".")
+        AnimatedVisibility(
+            visible = showFullNarrative,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "\"${prompt.narrativeText}\"",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
     }
+}
 
-    Text(
-        text = promptText,
-        style = MaterialTheme.typography.headlineMedium.copy(
-            fontSize = 21.sp,
-            lineHeight = 29.sp,
-            fontWeight = FontWeight.Normal
-        ),
-        color = MaterialTheme.colorScheme.onSurface
-    )
+@Composable
+private fun SectionBlock(
+    label: String,
+    labelColor: Color,
+    icon: ImageVector,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = labelColor,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                ),
+                color = labelColor
+            )
+        }
+        content()
+    }
 }
 
 @Composable

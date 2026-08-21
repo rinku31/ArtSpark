@@ -97,5 +97,76 @@ class ExampleRobolectricTest {
         assertEquals("Synthwave Pixel Art", prompt.style)
         assertTrue(viewModel.lockState.value.isLocked(PromptCategory.SUBJECT))
     }
+
+    @Test
+    fun `test prompt sentence builder handles indefinite articles and traits correctly`() {
+        val subject1 = com.example.generator.PromptSentenceBuilder.buildSubjectPhrase(
+            trait = "awestruck, inquisitive",
+            subject = "an underwater explorer"
+        )
+        assertEquals("An awestruck, inquisitive underwater explorer", subject1)
+
+        val subject2 = com.example.generator.PromptSentenceBuilder.buildSubjectPhrase(
+            trait = "curious",
+            subject = "fox"
+        )
+        assertEquals("A curious fox", subject2)
+
+        val subject3 = com.example.generator.PromptSentenceBuilder.buildSubjectPhrase(
+            trait = "",
+            subject = "underwater explorer"
+        )
+        assertEquals("An underwater explorer", subject3)
+
+        val subject4 = com.example.generator.PromptSentenceBuilder.buildSubjectPhrase(
+            trait = "ancient",
+            subject = "a dragon"
+        )
+        assertEquals("An ancient dragon", subject4)
+    }
+
+    @Test
+    fun `test structured sections in ArtPrompt`() {
+        val prompt = com.example.model.ArtPrompt(
+            id = 42L,
+            trait = "Awestruck, Inquisitive",
+            subject = "Underwater Explorer",
+            action = "discovering ancient scrolls inside",
+            environment = "a sunken library",
+            atmosphere = "golden sunlight filtering through deep blue water",
+            style = "Chiaroscuro Digital Painting",
+            challenge = "Focus on extreme depth of field"
+        )
+
+        assertEquals("An awestruck, inquisitive underwater explorer", prompt.subjectPhrase)
+        assertEquals("Discovering ancient scrolls inside a sunken library", prompt.scenePhrase)
+        assertEquals("Golden sunlight filtering through deep blue water", prompt.atmospherePhrase)
+        assertEquals("Chiaroscuro Digital Painting", prompt.stylePhrase)
+        assertEquals("Focus on extreme depth of field", prompt.challengePhrase)
+        assertTrue(prompt.displayStoryHook.isNotBlank())
+        assertTrue(prompt.toShareText().contains("SUBJECT:"))
+        assertTrue(prompt.toShareText().contains("SCENE:"))
+    }
+
+    @Test
+    fun `test share card bitmap renderer`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prompt = com.example.model.ArtPrompt(
+            id = 999L,
+            trait = "Luminous",
+            subject = "Sea Creature",
+            action = "navigating through",
+            environment = "a coral reef palace",
+            atmosphere = "bioluminescent moonless night",
+            style = "Watercolor on textured cold-press paper",
+            challenge = "Use only three colors"
+        )
+        val bitmap = android.graphics.Bitmap.createBitmap(1080, 1350, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        com.example.ui.util.ShareCardRenderer.renderCardOnCanvas(canvas, prompt)
+        assertNotNull(bitmap)
+        assertEquals(1080, bitmap.width)
+        assertEquals(1350, bitmap.height)
+    }
 }
 
