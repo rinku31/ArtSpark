@@ -381,7 +381,7 @@ RULES:
                     latestUserMsg.contains("7 categories") ||
                     latestUserMsg.contains("seven categories")
 
-            val rawIdeaType = parsedObj.optString("ideaType", ideaObj?.optString("type", "")).uppercase()
+            val rawIdeaType = parsedObj.optString("ideaType", ideaObj?.optString("type", "") ?: "").uppercase()
             val isGap = when {
                 userExplicitlyWantsGap -> true
                 userExplicitlyWantsClassic -> false
