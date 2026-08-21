@@ -11,5 +11,5 @@ object AppConfig {
      * Replace this placeholder with your actual Google Gemini API Key.
      * Example: "AIzaSy..."
      */
-    const val GEMINI_API_KEY = "PASTE_MY_API_KEY_HERE"
+    const val GEMINI_API_KEY = "AQ.Ab8RN6Kp08uSYeRihr2W1HTCw21Fp4QRZYUWGumFQPqIMG5Erw"
 }
