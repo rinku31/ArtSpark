@@ -55,7 +55,7 @@ class BrainstormApiClient(private val context: Context) {
 
     companion object {
         private const val TAG = "BrainstormApiClient"
-        private const val GEMINI_MODEL = "gemini-2.5-flash"
+        private const val GEMINI_MODEL = "gemini-3.5-flash"
         private const val GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
     }
 
