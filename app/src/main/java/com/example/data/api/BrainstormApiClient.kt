@@ -3,6 +3,7 @@ package com.example.data.api
 import android.content.Context
 import android.util.Log
 import com.example.BuildConfig
+import com.example.config.AppConfig
 import com.example.generator.PromptData
 import com.example.generator.PromptSentenceBuilder
 import com.example.model.BrainstormIdea
@@ -66,8 +67,19 @@ class BrainstormApiClient(private val context: Context) {
         .build()
 
     private fun getApiKey(): String {
+        // 1. Direct AppConfig compile-time constant for GitHub/local/export builds
+        val directKey = AppConfig.GEMINI_API_KEY.trim()
+        if (directKey.isNotBlank() &&
+            directKey != "PASTE_MY_API_KEY_HERE" &&
+            !directKey.startsWith("YOUR_") &&
+            !directKey.startsWith("MY_")
+        ) {
+            return directKey
+        }
+
+        // 2. Fallback to BuildConfig if configured
         return try {
-            val key = BuildConfig.GEMINI_API_KEY
+            val key = BuildConfig.GEMINI_API_KEY.trim()
             if (key.isNotBlank() && key != "MY_GEMINI_API_KEY" && !key.startsWith("YOUR_")) {
                 key
             } else {
@@ -157,6 +169,7 @@ class BrainstormApiClient(private val context: Context) {
             .url(url)
             .post(requestBody)
             .header("Content-Type", "application/json")
+            .header("x-goog-api-key", apiKey)
             .build()
 
         val response = httpClient.newCall(request).execute()
