@@ -72,10 +72,12 @@ ArtSpark features TWO distinct prompt types:
    - `challenge`: Creative drawing constraint.
    - `difficulty`: "EASY", "MEDIUM", or "HARD".
 
-PROMPT TYPE DETERMINATION:
-- If the user explicitly asks for a "creative gap", "fill in the blank", "gap sentence", "gap prompt", or if the active session is exploring a Creative Gap, set `ideaType` to "CREATIVE_GAP" and provide the Creative Gap structure.
-- If the user explicitly asks for a "classic spark", "7 categories", "inspiration board", or if the active session is exploring a Classic Spark, set `ideaType` to "CLASSIC_SPARK" and provide all 7 Classic Spark categories.
-- Otherwise, follow the active prompt mode provided in the active context below.
+PROMPT TYPE DETERMINATION & USER INTENT:
+- When starting a brainstorm session or receiving a message such as "Let's make a creative gap", "Create a creative gap", "Make a fill in the blank", "gap prompt", "gap sentence", or whenever the user asks for a Creative Gap:
+  You MUST set `ideaType` to "CREATIVE_GAP" and provide the Creative Gap structure (`gapSentence` containing `______`, `gapSuggestions` with 3-5 idea starters, `style`, `challenge`, and `difficulty`). Do NOT output Classic Spark subject/scene fields.
+- When starting a brainstorm session or receiving a message such as "Let's make a classic spark", "Create a classic spark", "7 categories", or when asking for a structured classic prompt:
+  You MUST set `ideaType` to "CLASSIC_SPARK" and provide all 7 Classic Spark categories (`personality`, `subject`, `scene`, `environment`, `atmosphere`, `style`, `challenge`, `storyHook`, `difficulty`). Do NOT output gap fields.
+- If the user does not specify a prompt type, follow the active prompt mode provided in the active context below.
 
 RULES:
 1. When generating a Creative Gap, ALWAYS KEEP THE BLANK (`______`) in `gapSentence`. Do NOT remove the blank. Provide 3-5 distinct `gapSuggestions`.
@@ -172,7 +174,7 @@ RULES:
                 return@withContext GeminiResult.Error(errorMsg)
             }
 
-            parseGeminiResponse(responseBody, currentIdea, seedPrompt, promptType)
+            parseGeminiResponse(responseBody, messages, currentIdea, seedPrompt, promptType)
         } catch (e: IOException) {
             Log.e(TAG, "Network error during Gemini request", e)
             GeminiResult.Error(
@@ -238,6 +240,25 @@ RULES:
             }
         }
 
+        val lastUserMessage = messages.lastOrNull { it.sender == MessageSender.USER }?.text?.lowercase().orEmpty()
+        val userWantsCreativeGap = lastUserMessage.contains("creative gap") ||
+                lastUserMessage.contains("fill in the blank") ||
+                lastUserMessage.contains("fill-in-the-blank") ||
+                lastUserMessage.contains("gap prompt") ||
+                lastUserMessage.contains("gap sentence") ||
+                lastUserMessage.contains("make a gap")
+
+        val userWantsClassicSpark = lastUserMessage.contains("classic spark") ||
+                lastUserMessage.contains("classic prompt") ||
+                lastUserMessage.contains("7 categories") ||
+                lastUserMessage.contains("seven categories")
+
+        if (userWantsCreativeGap) {
+            fullSysPrompt += "\n\nEXPLICIT USER DIRECTIVE: The user is explicitly asking to create a CREATIVE GAP prompt. You MUST set `ideaType` to \"CREATIVE_GAP\" and generate an evocative `gapSentence` containing `______` and 3-5 `gapSuggestions`."
+        } else if (userWantsClassicSpark) {
+            fullSysPrompt += "\n\nEXPLICIT USER DIRECTIVE: The user is explicitly asking to create a CLASSIC SPARK prompt. You MUST set `ideaType` to \"CLASSIC_SPARK\" and generate all 7 structured categories."
+        }
+
         sysParts.put(JSONObject().put("text", fullSysPrompt))
         systemInstructionObj.put("parts", sysParts)
         root.put("systemInstruction", systemInstructionObj)
@@ -260,6 +281,7 @@ RULES:
                     is CreativeGapIdea -> {
                         "${msg.text}\n[Creative Gap State (Difficulty: ${idea.difficulty.name}): Gap Sentence: \"${idea.gapSentence}\", Suggestions: ${idea.gapSuggestions.joinToString(", ")}, Style: ${idea.style}, Challenge: ${idea.challenge}]"
                     }
+                    else -> msg.text
                 }
             } else {
                 msg.text
@@ -308,6 +330,7 @@ RULES:
 
     private fun parseGeminiResponse(
         rawJson: String,
+        messages: List<BrainstormMessage>,
         previousIdea: BrainstormIdea?,
         seedPrompt: DiscoverPrompt?,
         promptType: PromptType
@@ -344,9 +367,24 @@ RULES:
 
             val ideaObj = parsedObj.optJSONObject("idea")
 
-            // Determine if the returned idea is Creative Gap or Classic Spark
+            // Determine if the returned idea is Creative Gap or Classic Spark based on user intent and JSON output
+            val latestUserMsg = messages.lastOrNull { it.sender == MessageSender.USER }?.text?.lowercase().orEmpty()
+            val userExplicitlyWantsGap = latestUserMsg.contains("creative gap") ||
+                    latestUserMsg.contains("fill in the blank") ||
+                    latestUserMsg.contains("fill-in-the-blank") ||
+                    latestUserMsg.contains("gap prompt") ||
+                    latestUserMsg.contains("gap sentence") ||
+                    latestUserMsg.contains("make a gap")
+
+            val userExplicitlyWantsClassic = latestUserMsg.contains("classic spark") ||
+                    latestUserMsg.contains("classic prompt") ||
+                    latestUserMsg.contains("7 categories") ||
+                    latestUserMsg.contains("seven categories")
+
             val rawIdeaType = parsedObj.optString("ideaType", ideaObj?.optString("type", "")).uppercase()
             val isGap = when {
+                userExplicitlyWantsGap -> true
+                userExplicitlyWantsClassic -> false
                 rawIdeaType == "CREATIVE_GAP" -> true
                 rawIdeaType == "CLASSIC_SPARK" -> false
                 ideaObj != null && (ideaObj.has("gapSentence") || ideaObj.has("gapSuggestions")) && !ideaObj.has("subject") && !ideaObj.has("scene") -> true
@@ -365,7 +403,21 @@ RULES:
                     prevGap?.difficulty ?: seedGap?.difficulty ?: Difficulty.MEDIUM
                 }
 
-                val gapSentence = ideaObj?.optString("gapSentence", prevGap?.gapSentence ?: seedGap?.gapSentence.orEmpty())?.trim().orEmpty()
+                var gapSentence = ideaObj?.optString("gapSentence", prevGap?.gapSentence ?: seedGap?.gapSentence.orEmpty())?.trim().orEmpty()
+                if (gapSentence.isBlank()) {
+                    val s = ideaObj?.optString("subject", "").orEmpty()
+                    val env = ideaObj?.optString("environment", "").orEmpty()
+                    gapSentence = if (s.isNotBlank() && env.isNotBlank()) {
+                        "A $s discovers a mysterious ______ in $env."
+                    } else if (s.isNotBlank()) {
+                        "A $s exploring a strange realm with a missing ______."
+                    } else {
+                        "An intrepid traveler uncovers a glowing ______ in an uncharted realm."
+                    }
+                } else if (!gapSentence.contains("______") && !gapSentence.contains("___")) {
+                    gapSentence = "$gapSentence ______"
+                }
+
                 val suggestions = mutableListOf<String>()
                 val suggestionsArray = ideaObj?.optJSONArray("gapSuggestions") ?: ideaObj?.optJSONArray("suggestedFillIns")
                 if (suggestionsArray != null) {
@@ -374,21 +426,26 @@ RULES:
                         if (s.isNotBlank()) suggestions.add(s)
                     }
                 }
-                val finalSuggestions = if (suggestions.isNotEmpty()) suggestions else prevGap?.gapSuggestions ?: seedGap?.displayGapSuggestions ?: emptyList()
+                val finalSuggestions = if (suggestions.isNotEmpty()) {
+                    suggestions
+                } else if (prevGap?.gapSuggestions?.isNotEmpty() == true) {
+                    prevGap.gapSuggestions
+                } else if (seedGap?.displayGapSuggestions?.isNotEmpty() == true) {
+                    seedGap.displayGapSuggestions
+                } else {
+                    listOf("luminescent crystal", "mechanical heart", "living constellation", "forgotten key")
+                }
+
                 val style = ideaObj?.optString("style", prevGap?.style ?: seedGap?.style.orEmpty())?.trim().orEmpty()
                 val challenge = ideaObj?.optString("challenge", prevGap?.challenge ?: seedGap?.challenge.orEmpty())?.trim().orEmpty()
 
-                if (gapSentence.isNotBlank()) {
-                    CreativeGapIdea(
-                        difficulty = difficulty,
-                        gapSentence = gapSentence,
-                        gapSuggestions = finalSuggestions,
-                        style = style,
-                        challenge = challenge
-                    )
-                } else {
-                    prevGap
-                }
+                CreativeGapIdea(
+                    difficulty = difficulty,
+                    gapSentence = gapSentence,
+                    gapSuggestions = finalSuggestions,
+                    style = if (style.isNotBlank()) style else "Storybook Gouache",
+                    challenge = if (challenge.isNotBlank()) challenge else "Harmonious warm lighting"
+                )
             } else {
                 val prevClassic = previousIdea as? ClassicSparkIdea
                 val seedClassic = seedPrompt as? ClassicSpark

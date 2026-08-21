@@ -85,6 +85,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.ArtSparkIdea
 import com.example.model.BrainstormMessage
 import com.example.model.MessageSender
+import com.example.model.PromptType
 import com.example.model.QuickAiAction
 import com.example.ui.theme.CleanBorder
 import com.example.ui.theme.CleanCanvasBackground
@@ -123,6 +124,7 @@ fun BrainstormScreen(
     ) {
         // Header
         BrainstormHeader(
+            activePromptType = brainstormState.activePromptType,
             onNewBrainstorm = { viewModel.startNewBrainstorm() }
         )
 
@@ -213,6 +215,7 @@ fun BrainstormScreen(
 
 @Composable
 private fun BrainstormHeader(
+    activePromptType: PromptType?,
     onNewBrainstorm: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -255,6 +258,27 @@ private fun BrainstormHeader(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
+                        }
+
+                        if (activePromptType != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            val isGap = activePromptType == PromptType.CREATIVE_GAP
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isGap) MintTeal.copy(alpha = 0.15f) else IrisPurple.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, if (isGap) MintTeal.copy(alpha = 0.4f) else IrisPurple.copy(alpha = 0.4f)),
+                                modifier = Modifier.testTag("active_mode_badge")
+                            ) {
+                                Text(
+                                    text = if (isGap) "Creative Gap ✨" else "Classic Spark 🎨",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    ),
+                                    color = if (isGap) MintTeal else IrisPurple,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                     Text(
@@ -346,12 +370,12 @@ private fun InitialBrainstormState(
     modifier: Modifier = Modifier
 ) {
     val quickStarts = listOf(
-        Pair("🎨 Give me an idea", "Give me a fresh, exciting art prompt to draw right now."),
-        Pair("😵 I'm stuck", "I have artist's block. Help me break through with a fun, unconventional drawing concept."),
-        Pair("🐉 Character idea", "Brainstorm an expressive character concept with unique personality and attire."),
-        Pair("🌄 Environment idea", "Suggest an atmospheric environment with rich lighting and depth."),
-        Pair("📖 Story concept", "Give me an art idea that tells an intriguing mini-story in a single frame."),
-        Pair("🎲 Surprise me", "Surprise me with a bold, unexpected mashup of subjects and art styles!")
+        Pair("✨ Make a Creative Gap", "Let's make a creative gap"),
+        Pair("🎨 Make a Classic Spark", "Let's make a classic spark"),
+        Pair("🧩 Mystery Blank Scene", "Let's make a creative gap with an intriguing mystery"),
+        Pair("🐉 Fantasy Character Spark", "Let's make a classic spark fantasy character concept"),
+        Pair("😵 I'm Stuck", "I have artist's block. Help me break through with a fun drawing concept."),
+        Pair("🎲 Surprise Me", "Surprise me with a fresh art prompt!")
     )
 
     LazyColumn(
@@ -403,7 +427,7 @@ private fun InitialBrainstormState(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Ready to brainstorm? Tell me what you're thinking, even if it's only a tiny idea.",
+                        text = "Ready to brainstorm? Tell me what you're thinking, or start a Classic Spark or Creative Gap.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center

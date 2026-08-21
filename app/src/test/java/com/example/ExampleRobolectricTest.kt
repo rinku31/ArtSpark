@@ -235,5 +235,39 @@ class ExampleRobolectricTest {
         assertEquals(1080, bitmap.width)
         assertEquals(1350, bitmap.height)
     }
+
+    @Test
+    fun `test mode toggle retains previous board when cycling through spark or gap`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = ArtSparkViewModel(app)
+
+        val initialClassicPrompt = viewModel.currentPrompt.value
+        assertTrue("Initial prompt should be ClassicSpark", initialClassicPrompt is com.example.model.ClassicSpark)
+
+        // Switching mode to creative gap for the first time generates and displays a CreativeGap
+        viewModel.setCreativeGapMode(true)
+        assertTrue(viewModel.isCreativeGapMode.value)
+        val firstGapPrompt = viewModel.currentPrompt.value
+        assertTrue("Prompt should now be CreativeGap", firstGapPrompt is com.example.model.CreativeGap)
+
+        // Switching back to classic spark retains the exact previous classic spark board
+        viewModel.setCreativeGapMode(false)
+        org.junit.Assert.assertFalse(viewModel.isCreativeGapMode.value)
+        assertEquals("Should retain original classic spark board", initialClassicPrompt.displayPromptText, viewModel.currentPrompt.value.displayPromptText)
+
+        // Switching back to creative gap retains the exact first creative gap board
+        viewModel.setCreativeGapMode(true)
+        assertTrue(viewModel.isCreativeGapMode.value)
+        assertEquals("Should retain original creative gap board", firstGapPrompt.displayPromptText, viewModel.currentPrompt.value.displayPromptText)
+
+        // Only when reroll() is called does that mode get a new board
+        viewModel.reroll()
+        val rerolledGapPrompt = viewModel.currentPrompt.value
+        assertTrue("Rerolled prompt should be CreativeGap", rerolledGapPrompt is com.example.model.CreativeGap)
+
+        // Switching back to classic spark still retains the classic spark board
+        viewModel.setCreativeGapMode(false)
+        assertEquals("Should still retain original classic spark board", initialClassicPrompt.displayPromptText, viewModel.currentPrompt.value.displayPromptText)
+    }
 }
 

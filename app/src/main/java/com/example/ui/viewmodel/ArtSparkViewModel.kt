@@ -53,13 +53,13 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     private val _dailySpark = MutableStateFlow(PromptGenerator.generateDailySpark())
     val dailySpark: StateFlow<ClassicSpark> = _dailySpark.asStateFlow()
 
-    private val _currentPrompt = MutableStateFlow<DiscoverPrompt>(
-        PromptGenerator.generate(
-            difficulty = Difficulty.MEDIUM,
-            lockState = PromptLockState(),
-            isCreativeGap = false
-        )
+    private var _lastClassicSpark: ClassicSpark? = PromptGenerator.generateClassicSpark(
+        difficulty = Difficulty.MEDIUM,
+        lockState = PromptLockState()
     )
+    private var _lastCreativeGap: CreativeGap? = null
+
+    private val _currentPrompt = MutableStateFlow<DiscoverPrompt>(_lastClassicSpark!!)
     val currentPrompt: StateFlow<DiscoverPrompt> = _currentPrompt.asStateFlow()
 
     private val _isAdvancedOpen = MutableStateFlow(false)
@@ -100,22 +100,32 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     fun reroll() {
         val nextPrompt = if (_isCreativeGapMode.value) {
-            PromptGenerator.generateCreativeGap(
+            val gap = PromptGenerator.generateCreativeGap(
                 difficulty = _selectedDifficulty.value
             )
+            _lastCreativeGap = gap
+            gap
         } else {
-            PromptGenerator.generateClassicSpark(
+            val classic = PromptGenerator.generateClassicSpark(
                 difficulty = _selectedDifficulty.value,
                 lockState = _lockState.value,
                 enabledCategories = preferences.value.enabledCategories
             )
+            _lastClassicSpark = classic
+            classic
         }
         _currentPrompt.value = nextPrompt
         _rerollTrigger.value += 1
 
         viewModelScope.launch {
             val id = repository.savePrompt(nextPrompt)
-            _currentPrompt.value = nextPrompt.copyWithId(id)
+            val withId = nextPrompt.copyWithId(id)
+            if (_isCreativeGapMode.value && withId is CreativeGap) {
+                _lastCreativeGap = withId
+            } else if (!_isCreativeGapMode.value && withId is ClassicSpark) {
+                _lastClassicSpark = withId
+            }
+            _currentPrompt.value = withId
         }
     }
 
@@ -153,6 +163,7 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         val curr = _currentPrompt.value
         if (curr is ClassicSpark) {
             val updated = curr.withCategory(category, value, isCustom)
+            _lastClassicSpark = updated
             _currentPrompt.value = updated
             viewModelScope.launch {
                 repository.savePrompt(updated)
@@ -167,6 +178,8 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     fun setDifficulty(difficulty: Difficulty) {
         _selectedDifficulty.value = difficulty
         val updated = _currentPrompt.value.withDifficulty(difficulty)
+        if (updated is ClassicSpark) _lastClassicSpark = updated
+        if (updated is CreativeGap) _lastCreativeGap = updated
         _currentPrompt.value = updated
         viewModelScope.launch {
             repository.savePrompt(updated)
@@ -180,37 +193,42 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     fun setCreativeGapMode(active: Boolean) {
         if (_isCreativeGapMode.value == active) return
         _isCreativeGapMode.value = active
-        val current = _currentPrompt.value
+
         if (active) {
-            val gapPrompt = if (current is CreativeGap) current else {
-                PromptGenerator.generateCreativeGap(
+            val existingGap = _lastCreativeGap
+            if (existingGap != null) {
+                _currentPrompt.value = existingGap
+            } else {
+                val newGap = PromptGenerator.generateCreativeGap(
                     difficulty = _selectedDifficulty.value
-                ).copy(
-                    style = current.style,
-                    challenge = current.challenge
                 )
-            }
-            _currentPrompt.value = gapPrompt
-            _rerollTrigger.value += 1
-            viewModelScope.launch {
-                val id = repository.savePrompt(gapPrompt)
-                _currentPrompt.value = gapPrompt.copyWithId(id)
+                _lastCreativeGap = newGap
+                _currentPrompt.value = newGap
+                viewModelScope.launch {
+                    val id = repository.savePrompt(newGap)
+                    val withId = newGap.copyWithId(id)
+                    _lastCreativeGap = withId
+                    _currentPrompt.value = withId
+                }
             }
         } else {
-            val classicPrompt = if (current is ClassicSpark) current else {
-                PromptGenerator.generateClassicSpark(
+            val existingClassic = _lastClassicSpark
+            if (existingClassic != null) {
+                _currentPrompt.value = existingClassic
+            } else {
+                val newClassic = PromptGenerator.generateClassicSpark(
                     difficulty = _selectedDifficulty.value,
-                    lockState = _lockState.value
-                ).copy(
-                    artStyle = current.style,
-                    creativeChallenge = current.challenge
+                    lockState = _lockState.value,
+                    enabledCategories = preferences.value.enabledCategories
                 )
-            }
-            _currentPrompt.value = classicPrompt
-            _rerollTrigger.value += 1
-            viewModelScope.launch {
-                val id = repository.savePrompt(classicPrompt)
-                _currentPrompt.value = classicPrompt.copyWithId(id)
+                _lastClassicSpark = newClassic
+                _currentPrompt.value = newClassic
+                viewModelScope.launch {
+                    val id = repository.savePrompt(newClassic)
+                    val withId = newClassic.copyWithId(id)
+                    _lastClassicSpark = withId
+                    _currentPrompt.value = withId
+                }
             }
         }
     }
@@ -219,7 +237,10 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         val prompt = _currentPrompt.value
         viewModelScope.launch {
             val newFavStatus = !prompt.isFavorite
-            _currentPrompt.value = prompt.copyWithFavorite(newFavStatus)
+            val updated = prompt.copyWithFavorite(newFavStatus)
+            if (updated is ClassicSpark) _lastClassicSpark = updated
+            if (updated is CreativeGap) _lastCreativeGap = updated
+            _currentPrompt.value = updated
             repository.toggleFavorite(prompt)
         }
     }
@@ -228,7 +249,10 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             repository.toggleFavorite(prompt)
             if (_currentPrompt.value.id == prompt.id) {
-                _currentPrompt.value = _currentPrompt.value.copyWithFavorite(!prompt.isFavorite)
+                val updated = _currentPrompt.value.copyWithFavorite(!prompt.isFavorite)
+                if (updated is ClassicSpark) _lastClassicSpark = updated
+                if (updated is CreativeGap) _lastCreativeGap = updated
+                _currentPrompt.value = updated
             }
         }
     }
@@ -256,7 +280,13 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     fun loadPromptToWorkspace(prompt: DiscoverPrompt, onNavigateToDiscover: () -> Unit) {
         _selectedDifficulty.value = prompt.difficulty
-        _isCreativeGapMode.value = (prompt.promptType == PromptType.CREATIVE_GAP)
+        val isGap = (prompt.promptType == PromptType.CREATIVE_GAP)
+        _isCreativeGapMode.value = isGap
+        if (prompt is CreativeGap) {
+            _lastCreativeGap = prompt
+        } else if (prompt is ClassicSpark) {
+            _lastClassicSpark = prompt
+        }
         _currentPrompt.value = prompt
         _rerollTrigger.value += 1
         onNavigateToDiscover()
@@ -455,6 +485,7 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
                         messages = _brainstormState.value.messages + aiMessage,
                         isLoading = false,
                         currentIdea = result.idea ?: _brainstormState.value.currentIdea,
+                        activePromptType = result.detectedPromptType,
                         errorMessage = null,
                         isOffline = false,
                         isApiKeyMissing = false
@@ -509,12 +540,15 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
                     spark.copy(customCategories = customCats)
                 }
 
+                _lastClassicSpark = updatedPrompt
                 _currentPrompt.value = updatedPrompt
                 _rerollTrigger.value += 1
 
                 viewModelScope.launch {
                     val savedId = repository.savePrompt(updatedPrompt)
-                    _currentPrompt.value = updatedPrompt.copyWithId(savedId)
+                    val withId = updatedPrompt.copyWithId(savedId)
+                    _lastClassicSpark = withId
+                    _currentPrompt.value = withId
                 }
             }
             is CreativeGapIdea -> {
@@ -524,12 +558,15 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
                     id = System.currentTimeMillis()
                 )
 
+                _lastCreativeGap = updatedPrompt
                 _currentPrompt.value = updatedPrompt
                 _rerollTrigger.value += 1
 
                 viewModelScope.launch {
                     val savedId = repository.savePrompt(updatedPrompt)
-                    _currentPrompt.value = updatedPrompt.copyWithId(savedId)
+                    val withId = updatedPrompt.copyWithId(savedId)
+                    _lastCreativeGap = withId
+                    _currentPrompt.value = withId
                 }
             }
         }
