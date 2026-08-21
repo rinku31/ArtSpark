@@ -24,7 +24,7 @@ class PromptRepository(private val promptDao: PromptDao) {
         if (prompt.id > 0) {
             promptDao.updateFavoriteStatus(prompt.id, newStatus)
         } else {
-            val entity = PromptEntity.fromDomain(prompt.copy(isFavorite = newStatus))
+            val entity = PromptEntity.fromDomain(prompt.copyWithFavorite(newStatus))
             promptDao.insert(entity)
         }
         return newStatus

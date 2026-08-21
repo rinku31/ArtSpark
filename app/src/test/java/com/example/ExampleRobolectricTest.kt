@@ -3,7 +3,10 @@ package com.example
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.generator.PromptGenerator
+import com.example.model.ArtPrompt
 import com.example.model.ArtSparkIdea
+import com.example.model.ClassicSparkIdea
+import com.example.model.CreativeGapIdea
 import com.example.model.Difficulty
 import com.example.model.MessageSender
 import com.example.model.PromptCategory
@@ -74,14 +77,15 @@ class ExampleRobolectricTest {
     fun `test apply brainstorm idea to workspace sets custom categories and locks`() {
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
         val viewModel = ArtSparkViewModel(app)
-        val testIdea = ArtSparkIdea(
-            subject = "Neon Chameleon",
-            trait = "Sly",
-            action = "hacking a vending machine",
+        val testIdea = ClassicSparkIdea(
+            difficulty = Difficulty.HARD,
+            personalityTrait = "Sly",
+            subjectCharacter = "Neon Chameleon",
+            actionSituationScene = "hacking a vending machine",
             environment = "Cyberpunk Alley",
-            atmosphere = "Rainy neon reflections",
-            style = "Synthwave Pixel Art",
-            challenge = "Limited 4-color palette"
+            atmosphereWeather = "Rainy neon reflections",
+            artStyle = "Synthwave Pixel Art",
+            creativeChallenge = "Limited 4-color palette"
         )
 
         var navigated = false
@@ -91,11 +95,74 @@ class ExampleRobolectricTest {
 
         assertTrue(navigated)
         val prompt = viewModel.currentPrompt.value
+        assertTrue("Prompt should be ClassicSpark", prompt is com.example.model.ClassicSpark)
         assertEquals("Neon Chameleon", prompt.subject)
         assertEquals("Sly", prompt.trait)
-        assertEquals("Cyberpunk Alley", prompt.environment)
+        assertEquals("Cyberpunk Alley", prompt.displayEnvironment)
         assertEquals("Synthwave Pixel Art", prompt.style)
+        assertEquals(Difficulty.HARD, prompt.difficulty)
+        assertEquals(Difficulty.HARD, viewModel.selectedDifficulty.value)
         assertTrue(viewModel.lockState.value.isLocked(PromptCategory.SUBJECT))
+    }
+
+    @Test
+    fun `test apply creative gap brainstorm idea preserves creative gap mode and difficulty`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = ArtSparkViewModel(app)
+        val testGapIdea = com.example.model.CreativeGapIdea(
+            difficulty = Difficulty.HARD,
+            gapSentence = "An astronaut finds a glowing ______ floating outside the orbital station.",
+            gapSuggestions = listOf("pocket watch", "origami crane", "cassette tape"),
+            style = "Risograph print",
+            challenge = "Duotone cyan and magenta"
+        )
+
+        var navigated = false
+        viewModel.applyBrainstormIdeaToWorkspace(testGapIdea) {
+            navigated = true
+        }
+
+        assertTrue(navigated)
+        val prompt = viewModel.currentPrompt.value
+        assertTrue("Prompt should be CreativeGap", prompt is com.example.model.CreativeGap)
+        assertTrue(viewModel.isCreativeGapMode.value)
+        assertEquals("An astronaut finds a glowing ______ floating outside the orbital station.", prompt.narrativeText)
+        assertEquals(Difficulty.HARD, prompt.difficulty)
+        assertEquals(Difficulty.HARD, viewModel.selectedDifficulty.value)
+        assertEquals("Risograph print", prompt.style)
+        assertEquals("Duotone cyan and magenta", prompt.challenge)
+    }
+
+    @Test
+    fun `test creative gap prompt initializes brainstorm session with gap template and pills`() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = ArtSparkViewModel(app)
+
+        val creativeGapPrompt = ArtPrompt(
+            id = 9999L,
+            trait = "Curious",
+            subject = "little fox explorer",
+            action = "",
+            environment = "Sunken crystal library",
+            atmosphere = "Bioluminescent glow",
+            style = "Storybook Watercolor",
+            challenge = "Soft pastel tones",
+            isCreativeGap = true,
+            gapTemplate = "A curious little fox explorer discovers a mysterious ______ in a sunken crystal library."
+        )
+
+        var navigated = false
+        viewModel.startBrainstormWithPrompt(creativeGapPrompt) {
+            navigated = true
+        }
+
+        assertTrue(navigated)
+        val state = viewModel.brainstormState.value
+        assertEquals(1, state.messages.size)
+        val firstMessage = state.messages.first()
+        assertTrue(firstMessage.text.contains("Creative Gap prompt"))
+        assertTrue(firstMessage.text.contains("discovers a mysterious ______"))
+        assertTrue(firstMessage.quickPills.any { it.contains("blank", ignoreCase = true) || it.contains("gap", ignoreCase = true) })
     }
 
     @Test

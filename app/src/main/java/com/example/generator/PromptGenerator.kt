@@ -1,7 +1,9 @@
 package com.example.generator
 
-import com.example.model.ArtPrompt
+import com.example.model.ClassicSpark
+import com.example.model.CreativeGap
 import com.example.model.Difficulty
+import com.example.model.DiscoverPrompt
 import com.example.model.PromptCategory
 import com.example.model.PromptLockState
 import java.util.Calendar
@@ -11,7 +13,7 @@ import kotlin.random.Random
 object PromptGenerator {
 
     /**
-     * Generates an ArtPrompt based on difficulty, lock state, and mode.
+     * Generates a DiscoverPrompt based on difficulty, lock state, and mode.
      */
     fun generate(
         difficulty: Difficulty = Difficulty.MEDIUM,
@@ -19,7 +21,31 @@ object PromptGenerator {
         isCreativeGap: Boolean = false,
         enabledCategories: Set<PromptCategory> = PromptCategory.values().toSet(),
         random: Random = Random.Default
-    ): ArtPrompt {
+    ): DiscoverPrompt {
+        return if (isCreativeGap) {
+            generateCreativeGap(
+                difficulty = difficulty,
+                random = random
+            )
+        } else {
+            generateClassicSpark(
+                difficulty = difficulty,
+                lockState = lockState,
+                enabledCategories = enabledCategories,
+                random = random
+            )
+        }
+    }
+
+    /**
+     * Dedicated generator for Classic Spark (7-category prompt).
+     */
+    fun generateClassicSpark(
+        difficulty: Difficulty = Difficulty.MEDIUM,
+        lockState: PromptLockState = PromptLockState(),
+        enabledCategories: Set<PromptCategory> = PromptCategory.values().toSet(),
+        random: Random = Random.Default
+    ): ClassicSpark {
         val customCategories = mutableSetOf<PromptCategory>()
 
         val trait = if (lockState.isCustom(PromptCategory.TRAIT)) {
@@ -109,51 +135,78 @@ object PromptGenerator {
             }
         } else ""
 
-        var gapTemplate: String? = null
-        if (isCreativeGap) {
-            val templateRaw = PromptData.creativeGapTemplates.random(random)
-            val subClean = subject.lowercase()
-            val envClean = environment.removePrefix("an ").removePrefix("a ").lowercase()
-            val atmClean = if (atmosphere.isNotBlank()) atmosphere.lowercase() else "a quiet starry night"
+        val sentence = PromptSentenceBuilder.buildFullPromptSentence(
+            trait, subject, action, environment, atmosphere, style, challenge
+        )
 
-            gapTemplate = try {
-                when {
-                    templateRaw.contains("%s.*%s.*%s".toRegex()) -> {
-                        String.format(templateRaw, subClean, envClean, atmClean)
-                    }
-                    templateRaw.contains("%s.*%s".toRegex()) -> {
-                        String.format(templateRaw, subClean, envClean)
-                    }
-                    else -> {
-                        String.format(templateRaw, subClean)
-                    }
-                }
-            } catch (e: Exception) {
-                "A $trait $subClean discovers a mysterious ______ in $environment."
-            }
-        }
-
-        return ArtPrompt(
+        return ClassicSpark(
             id = System.currentTimeMillis() + random.nextInt(1000),
-            trait = trait,
-            subject = subject,
-            action = action,
-            environment = environment,
-            atmosphere = atmosphere,
-            style = style,
-            challenge = challenge,
-            isCreativeGap = isCreativeGap,
-            gapTemplate = gapTemplate,
             difficulty = difficulty,
+            personalityTrait = trait,
+            subjectCharacter = subject,
+            actionSituationScene = action,
+            environment = environment,
+            atmosphereWeather = atmosphere,
+            artStyle = style,
+            creativeChallenge = challenge,
+            storyHook = "",
+            generatedSentence = sentence,
             timestamp = System.currentTimeMillis(),
             customCategories = customCategories
         )
     }
 
     /**
+     * Dedicated generator for Creative Gap.
+     * Contains only gapSentence, suggestions, style, and challenge.
+     */
+    fun generateCreativeGap(
+        difficulty: Difficulty = Difficulty.MEDIUM,
+        random: Random = Random.Default
+    ): CreativeGap {
+        val def = PromptData.creativeGapDefinitions.random(random)
+        val sampleSubject = PromptData.subjects.random(random).lowercase()
+        val sampleEnv = PromptData.environments.random(random).removePrefix("an ").removePrefix("a ").lowercase()
+        val sampleAtm = PromptData.atmospheres.random(random).lowercase()
+
+        val gapSentence = try {
+            when {
+                def.template.contains("%s.*%s.*%s".toRegex()) -> {
+                    String.format(def.template, sampleSubject, sampleEnv, sampleAtm)
+                }
+                def.template.contains("%s.*%s".toRegex()) -> {
+                    String.format(def.template, sampleSubject, sampleEnv)
+                }
+                else -> {
+                    String.format(def.template, sampleSubject)
+                }
+            }
+        } catch (e: Exception) {
+            "A curious $sampleSubject discovers a mysterious ______ hidden beneath $sampleEnv."
+        }
+
+        val style = if (random.nextBoolean()) PromptData.styles.random(random) else ""
+        val challenge = when (difficulty) {
+            Difficulty.EASY -> listOf("Soft pastel palette", "Quick 15-minute sketch", "Minimalist lines").random(random)
+            Difficulty.MEDIUM -> PromptData.challenges.random(random)
+            Difficulty.HARD -> listOf("Limit yourself to 2 colors", "Dramatic chiaroscuro lighting", "No erasing allowed").random(random)
+        }
+
+        return CreativeGap(
+            id = System.currentTimeMillis() + random.nextInt(1000),
+            difficulty = difficulty,
+            gapSentence = gapSentence,
+            gapSuggestions = def.starters,
+            style = style,
+            challenge = challenge,
+            timestamp = System.currentTimeMillis()
+        )
+    }
+
+    /**
      * Generates deterministic Daily Spark based on current calendar date.
      */
-    fun generateDailySpark(): ArtPrompt {
+    fun generateDailySpark(): ClassicSpark {
         val calendar = Calendar.getInstance(TimeZone.getDefault())
         val year = calendar.get(Calendar.YEAR)
         val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
@@ -168,37 +221,50 @@ object PromptGenerator {
         val style = PromptData.styles.random(random)
         val challenge = PromptData.challenges.random(random)
 
-        return ArtPrompt(
+        val sentence = PromptSentenceBuilder.buildFullPromptSentence(
+            trait, subject, action, environment, atmosphere, style, challenge
+        )
+
+        return ClassicSpark(
             id = dailySeed,
-            trait = trait,
-            subject = subject,
-            action = action,
-            environment = environment,
-            atmosphere = atmosphere,
-            style = style,
-            challenge = challenge,
-            isCreativeGap = false,
             difficulty = Difficulty.MEDIUM,
+            personalityTrait = trait,
+            subjectCharacter = subject,
+            actionSituationScene = action,
+            environment = environment,
+            atmosphereWeather = atmosphere,
+            artStyle = style,
+            creativeChallenge = challenge,
+            storyHook = "",
+            generatedSentence = sentence,
             timestamp = calendar.timeInMillis,
             isDailySpark = true
         )
     }
 
     /**
-     * Creates a similar prompt by preserving subject/style and re-rolling remaining attributes.
+     * Creates a similar prompt preserving prompt type and key style/subject traits.
      */
-    fun createSimilar(basePrompt: ArtPrompt): ArtPrompt {
-        val lockState = PromptLockState(
-            lockedCategories = setOf(PromptCategory.SUBJECT, PromptCategory.STYLE),
-            lockedValues = mapOf(
-                PromptCategory.SUBJECT to basePrompt.subject,
-                PromptCategory.STYLE to basePrompt.style
-            )
-        )
-        return generate(
-            difficulty = basePrompt.difficulty,
-            lockState = lockState,
-            isCreativeGap = basePrompt.isCreativeGap
-        )
+    fun createSimilar(basePrompt: DiscoverPrompt): DiscoverPrompt {
+        return when (basePrompt) {
+            is ClassicSpark -> {
+                val lockState = PromptLockState(
+                    lockedCategories = setOf(PromptCategory.SUBJECT, PromptCategory.STYLE),
+                    lockedValues = mapOf(
+                        PromptCategory.SUBJECT to basePrompt.subjectCharacter,
+                        PromptCategory.STYLE to basePrompt.artStyle
+                    )
+                )
+                generateClassicSpark(
+                    difficulty = basePrompt.difficulty,
+                    lockState = lockState
+                )
+            }
+            is CreativeGap -> {
+                generateCreativeGap(
+                    difficulty = basePrompt.difficulty
+                ).copy(style = basePrompt.style)
+            }
+        }
     }
 }

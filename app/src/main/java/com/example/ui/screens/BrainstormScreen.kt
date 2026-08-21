@@ -75,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -624,7 +625,10 @@ private fun StructuredIdeaCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "ARTSPARK CONCEPT",
+                        text = when (idea) {
+                            is com.example.model.CreativeGapIdea -> "CREATIVE GAP CONCEPT"
+                            is com.example.model.ClassicSparkIdea -> "CLASSIC SPARK CONCEPT"
+                        },
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.2.sp
@@ -632,32 +636,158 @@ private fun StructuredIdeaCard(
                         color = CoralRed
                     )
                 }
+
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = SparkYellow.copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, SparkYellow.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = idea.difficulty.name,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Category breakdown rows
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (idea.subject.isNotBlank()) {
-                    IdeaCategoryRow(label = "Subject", value = idea.subject, color = CoralRed)
+            when (idea) {
+                is com.example.model.CreativeGapIdea -> {
+                    if (idea.gapSentence.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MintTeal.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, MintTeal.copy(alpha = 0.25f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Lightbulb,
+                                        contentDescription = null,
+                                        tint = MintTeal,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "CREATIVE GAP SENTENCE",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp,
+                                            letterSpacing = 1.sp
+                                        ),
+                                        color = MintTeal
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "\"${idea.gapSentence}\"",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontStyle = FontStyle.Italic,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (idea.style.isNotBlank()) {
+                            IdeaCategoryRow(label = "Style", value = idea.style, color = IrisPurple)
+                        }
+                        if (idea.challenge.isNotBlank()) {
+                            IdeaCategoryRow(label = "Challenge", value = idea.challenge, color = CoralRed)
+                        }
+
+                        if (idea.gapSuggestions.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MintTeal.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, MintTeal.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lightbulb,
+                                            contentDescription = null,
+                                            tint = MintTeal,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "IDEA STARTERS FOR THE BLANK",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp,
+                                                letterSpacing = 1.sp
+                                            ),
+                                            color = MintTeal
+                                        )
+                                    }
+                                    idea.gapSuggestions.take(3).forEach { starter ->
+                                        Text(
+                                            text = "• $starter",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 12.sp,
+                                                fontStyle = FontStyle.Italic
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                if (idea.trait.isNotBlank()) {
-                    IdeaCategoryRow(label = "Trait", value = idea.trait, color = CoralRed)
-                }
-                if (idea.environment.isNotBlank()) {
-                    IdeaCategoryRow(label = "Environment", value = idea.environment, color = MintTeal)
-                }
-                if (idea.atmosphere.isNotBlank()) {
-                    IdeaCategoryRow(label = "Atmosphere", value = idea.atmosphere, color = MintTeal)
-                }
-                if (idea.style.isNotBlank()) {
-                    IdeaCategoryRow(label = "Style", value = idea.style, color = IrisPurple)
-                }
-                if (idea.challenge.isNotBlank()) {
-                    IdeaCategoryRow(label = "Challenge", value = idea.challenge, color = SparkYellow)
+                is com.example.model.ClassicSparkIdea -> {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (idea.personalityTrait.isNotBlank()) {
+                            IdeaCategoryRow(label = "Personality", value = idea.personalityTrait, color = CoralRed)
+                        }
+                        if (idea.subjectCharacter.isNotBlank()) {
+                            IdeaCategoryRow(label = "Subject", value = idea.subjectCharacter, color = CoralRed)
+                        }
+                        if (idea.actionSituationScene.isNotBlank()) {
+                            IdeaCategoryRow(label = "Scene / Action", value = idea.actionSituationScene, color = MintTeal)
+                        }
+                        if (idea.environment.isNotBlank()) {
+                            IdeaCategoryRow(label = "Environment", value = idea.environment, color = MintTeal)
+                        }
+                        if (idea.atmosphereWeather.isNotBlank()) {
+                            IdeaCategoryRow(label = "Atmosphere", value = idea.atmosphereWeather, color = SparkYellow)
+                        }
+                        if (idea.artStyle.isNotBlank()) {
+                            IdeaCategoryRow(label = "Style", value = idea.artStyle, color = IrisPurple)
+                        }
+                        if (idea.creativeChallenge.isNotBlank()) {
+                            IdeaCategoryRow(label = "Challenge", value = idea.creativeChallenge, color = CoralRed)
+                        }
+                    }
                 }
             }
 

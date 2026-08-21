@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [PromptEntity::class], version = 2, exportSchema = false)
+@Database(entities = [PromptEntity::class], version = 3, exportSchema = false)
 abstract class ArtSparkDatabase : RoomDatabase() {
     abstract fun promptDao(): PromptDao
 

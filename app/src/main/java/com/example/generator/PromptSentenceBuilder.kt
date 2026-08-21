@@ -131,7 +131,7 @@ object PromptSentenceBuilder {
                 envTrim.lowercase(Locale.ROOT).startsWith("at ")) {
                 envTrim
             } else {
-                "Inside $envTrim"
+                "Inside ${decapitalizeFirst(envTrim)}"
             }
             return capitalizeFirst(cleanEnv)
         }
@@ -140,8 +140,8 @@ object PromptSentenceBuilder {
         val actLower = actTrim.lowercase(Locale.ROOT)
         val envLower = envTrim.lowercase(Locale.ROOT)
 
-        val connectors = listOf(" inside ", " in ", " at ", " atop ", " under ", " across ", " through ", " from ", " to ")
-        val actionEndsWithConnector = connectors.any { actLower.endsWith(it.trim()) || actLower.endsWith(it) }
+        val connectors = listOf(" inside ", " in ", " at ", " atop ", " under ", " across ", " through ", " from ", " to ", " inside", " in", " at", " atop", " under", " across", " through")
+        val actionEndsWithConnector = connectors.any { actLower.endsWith(it) }
 
         val environmentStartsWithConnector = envLower.startsWith("in ") ||
             envLower.startsWith("inside ") ||
@@ -149,17 +149,19 @@ object PromptSentenceBuilder {
             envLower.startsWith("under ") ||
             envLower.startsWith("atop ") ||
             envLower.startsWith("through ") ||
-            envLower.startsWith("across ")
+            envLower.startsWith("across ") ||
+            envLower.startsWith("amidst ") ||
+            envLower.startsWith("from ")
 
         val fullScene = when {
             actionEndsWithConnector && environmentStartsWithConnector -> {
-                // Remove the duplicate connector from environment
-                val cleanEnv = envTrim.substringAfter(" ")
-                "$actTrim $cleanEnv"
+                // Remove the duplicate connector from environment and decapitalize the rest
+                val remainingEnv = envTrim.substringAfter(" ")
+                "$actTrim ${decapitalizeFirst(remainingEnv)}"
             }
-            actionEndsWithConnector -> "$actTrim $envTrim"
-            environmentStartsWithConnector -> "$actTrim $envTrim"
-            else -> "$actTrim inside $envTrim"
+            actionEndsWithConnector -> "$actTrim ${decapitalizeFirst(envTrim)}"
+            environmentStartsWithConnector -> "$actTrim ${decapitalizeFirst(envTrim)}"
+            else -> "$actTrim inside ${decapitalizeFirst(envTrim)}"
         }
 
         return capitalizeFirst(fullScene)
@@ -177,6 +179,8 @@ object PromptSentenceBuilder {
             lower.startsWith("under ") -> atm.substring(6).trim()
             lower.startsWith("with ") -> atm.substring(5).trim()
             lower.startsWith("in ") -> atm.substring(3).trim()
+            lower.startsWith("at ") -> atm.substring(3).trim()
+            lower.startsWith("amidst ") -> atm.substring(7).trim()
             else -> atm
         }
         return capitalizeFirst(clean)
@@ -196,6 +200,16 @@ object PromptSentenceBuilder {
             lower.startsWith("in ") -> st.substring(3).trim()
             else -> st
         }
+        return capitalizeFirst(clean)
+    }
+
+    /**
+     * Builds a clean Challenge phrase.
+     */
+    fun buildChallengePhrase(challenge: String): String {
+        val ch = challenge.trim()
+        if (ch.isBlank()) return ""
+        val clean = if (ch.lowercase(Locale.ROOT).startsWith("challenge: ")) ch.substring(11).trim() else ch
         return capitalizeFirst(clean)
     }
 
@@ -234,8 +248,14 @@ object PromptSentenceBuilder {
                 atmLower.startsWith("during ") ||
                 atmLower.startsWith("under ") ||
                 atmLower.startsWith("in ") ||
-                atmLower.startsWith("with ") -> atmTrim
-                else -> "during $atmTrim"
+                atmLower.startsWith("with ") ||
+                atmLower.startsWith("amidst ") ||
+                atmLower.startsWith("at ") -> {
+                    val connector = atmTrim.substringBefore(" ").lowercase(Locale.ROOT)
+                    val rest = atmTrim.substringAfter(" ").trim()
+                    "$connector ${decapitalizeFirst(rest)}"
+                }
+                else -> "during ${decapitalizeFirst(atmTrim)}"
             }
             sentenceParts.add(atmFormatted)
         }
@@ -245,15 +265,102 @@ object PromptSentenceBuilder {
         // Add style rendered as clause
         if (styTrim.isNotBlank()) {
             val styClean = buildStylePhrase(styTrim)
-            val styleArticle = determineArticle(styClean, capitalize = false)
-            sentence += ", rendered as $styleArticle ${styClean.lowercase(Locale.ROOT)}"
+            val cleanNoArticle = cleanNoun(styClean)
+            val styleArticle = determineArticle(cleanNoArticle, capitalize = false)
+            val formattedStyle = decapitalizeFirst(cleanNoArticle)
+            sentence += ", rendered as $styleArticle $formattedStyle"
         }
 
         sentence = sentence.trim()
         if (!sentence.endsWith(".")) {
             sentence += "."
         }
-        return sentence
+        return polishGrammar(sentence)
+    }
+
+    /**
+     * Builds a full prompt sentence including optional creative challenge.
+     */
+    fun buildFullPromptSentence(
+        trait: String,
+        subject: String,
+        action: String,
+        environment: String,
+        atmosphere: String,
+        style: String,
+        challenge: String = ""
+    ): String {
+        val narrative = buildFullNarrative(trait, subject, action, environment, atmosphere, style)
+        if (challenge.isNotBlank()) {
+            val cleanChallenge = buildChallengePhrase(challenge)
+            return "$narrative Challenge: $cleanChallenge"
+        }
+        return narrative
+    }
+
+    /**
+     * Comprehensive grammar polish utility:
+     * - Fixes duplicate words and duplicate articles ("a a", "the the", "in in", etc.)
+     * - Fixes phonetic "a" vs "an" across the entire sentence
+     * - Fixes capitalization after mid-sentence prepositions & connectors for seamless continuity
+     * - Corrects punctuation spacing and comma placement
+     * - Fixes sentence-starting capitalization and sentence endings
+     */
+    fun polishGrammar(sentence: String): String {
+        if (sentence.isBlank()) return ""
+        var text = sentence.trim()
+
+        // 1. Fix duplicate articles & prepositions (case-insensitive)
+        text = text.replace(Regex("(?i)\\b(a|an|the|in|inside|at|during|rendered|as)\\s+\\1\\b"), "$1")
+        text = text.replace(Regex("(?i)\\b(a|an)\\s+(a|an)\\b"), "a")
+        text = text.replace(Regex("(?i)\\b(in|inside)\\s+(in|inside)\\b"), "inside")
+
+        // 2. Fix mid-sentence uppercase words following connectors (e.g. "inside A", "during Blazing", "with Glowing", "into Dark")
+        val connectorsList = "inside|in|into|during|under|with|within|at|atop|through|across|amidst|as|rendered as|between|against|from|along|beside|by"
+        val midSentenceConnectorRegex = Regex("(?i)\\b($connectorsList)\\s+([A-Z])([a-zA-Z]*)")
+        text = midSentenceConnectorRegex.replace(text) { matchResult ->
+            val connector = matchResult.groups[1]?.value ?: ""
+            val firstChar = matchResult.groups[2]?.value?.lowercase(Locale.ROOT) ?: ""
+            val restOfWord = matchResult.groups[3]?.value ?: ""
+            "$connector $firstChar$restOfWord"
+        }
+
+        // 3. Fix words following articles mid-sentence (e.g. "a Chaotic" -> "a chaotic", "an Enormous" -> "an enormous")
+        val articleFollowerRegex = Regex("(?i)\\b(a|an|the)\\s+([A-Z])([a-zA-Z]*)")
+        text = articleFollowerRegex.replace(text) { matchResult ->
+            val article = matchResult.groups[1]?.value ?: ""
+            val firstChar = matchResult.groups[2]?.value?.lowercase(Locale.ROOT) ?: ""
+            val restOfWord = matchResult.groups[3]?.value ?: ""
+            "$article $firstChar$restOfWord"
+        }
+
+        // 4. Fix improper punctuation spacing
+        text = text.replace(Regex("\\s+([,.:;?!])"), "$1") // space before punctuation
+        text = text.replace(Regex("([,.:;?!])(?=[A-Za-z0-9])"), "$1 ") // missing space after punctuation
+        text = text.replace(Regex(",\\s*,"), ",") // double commas
+        text = text.replace(Regex("\\s{2,}"), " ") // duplicate whitespace
+
+        // 5. Fix phonetic "a" vs "an" dynamically across the whole sentence
+        val articleRegex = Regex("(?i)\\b(a|an)\\s+([a-zA-Z]+)")
+        text = articleRegex.replace(text) { matchResult ->
+            val isFirstCapital = matchResult.groups[1]?.value?.first()?.isUpperCase() ?: false
+            val followingWord = matchResult.groups[2]?.value ?: ""
+            val correctArticle = determineArticle(followingWord, capitalize = isFirstCapital)
+            "$correctArticle ${decapitalizeFirst(followingWord)}"
+        }
+
+        // 6. Clean leading/trailing spaces & ensure sentence-start capitalization
+        text = text.trim()
+        if (text.isNotEmpty()) {
+            text = text.substring(0, 1).uppercase(Locale.ROOT) + text.substring(1)
+        }
+
+        // 7. Ensure ends with valid closing punctuation
+        if (text.isNotEmpty() && !text.endsWith(".") && !text.endsWith("!") && !text.endsWith("?")) {
+            text += "."
+        }
+
+        return text
     }
 
     /**

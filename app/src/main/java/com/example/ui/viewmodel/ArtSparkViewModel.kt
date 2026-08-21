@@ -10,15 +10,20 @@ import com.example.data.local.PromptRepository
 import com.example.data.local.UserPreferences
 import com.example.data.local.UserPreferencesRepository
 import com.example.generator.PromptGenerator
-import com.example.model.ArtPrompt
-import com.example.model.ArtSparkIdea
+import com.example.model.BrainstormIdea
 import com.example.model.BrainstormMessage
 import com.example.model.BrainstormUiState
 import com.example.model.CategorySelectionMode
+import com.example.model.ClassicSpark
+import com.example.model.ClassicSparkIdea
+import com.example.model.CreativeGap
+import com.example.model.CreativeGapIdea
 import com.example.model.Difficulty
+import com.example.model.DiscoverPrompt
 import com.example.model.MessageSender
 import com.example.model.PromptCategory
 import com.example.model.PromptLockState
+import com.example.model.PromptType
 import com.example.model.QuickAiAction
 import com.example.model.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,16 +51,16 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     val selectedDifficulty: StateFlow<Difficulty> = _selectedDifficulty.asStateFlow()
 
     private val _dailySpark = MutableStateFlow(PromptGenerator.generateDailySpark())
-    val dailySpark: StateFlow<ArtPrompt> = _dailySpark.asStateFlow()
+    val dailySpark: StateFlow<ClassicSpark> = _dailySpark.asStateFlow()
 
-    private val _currentPrompt = MutableStateFlow(
+    private val _currentPrompt = MutableStateFlow<DiscoverPrompt>(
         PromptGenerator.generate(
             difficulty = Difficulty.MEDIUM,
             lockState = PromptLockState(),
             isCreativeGap = false
         )
     )
-    val currentPrompt: StateFlow<ArtPrompt> = _currentPrompt.asStateFlow()
+    val currentPrompt: StateFlow<DiscoverPrompt> = _currentPrompt.asStateFlow()
 
     private val _isAdvancedOpen = MutableStateFlow(false)
     val isAdvancedOpen: StateFlow<Boolean> = _isAdvancedOpen.asStateFlow()
@@ -67,8 +72,8 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     private val _brainstormState = MutableStateFlow(BrainstormUiState())
     val brainstormState: StateFlow<BrainstormUiState> = _brainstormState.asStateFlow()
 
-    val history: StateFlow<List<ArtPrompt>>
-    val favorites: StateFlow<List<ArtPrompt>>
+    val history: StateFlow<List<DiscoverPrompt>>
+    val favorites: StateFlow<List<DiscoverPrompt>>
 
     init {
         val database = ArtSparkDatabase.getDatabase(application)
@@ -89,34 +94,46 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         // Save initial prompt to history
         viewModelScope.launch {
             val id = repository.savePrompt(_currentPrompt.value)
-            _currentPrompt.value = _currentPrompt.value.copy(id = id)
+            _currentPrompt.value = _currentPrompt.value.copyWithId(id)
         }
     }
 
     fun reroll() {
-        val nextPrompt = PromptGenerator.generate(
-            difficulty = _selectedDifficulty.value,
-            lockState = _lockState.value,
-            isCreativeGap = _isCreativeGapMode.value,
-            enabledCategories = preferences.value.enabledCategories
-        )
+        val nextPrompt = if (_isCreativeGapMode.value) {
+            PromptGenerator.generateCreativeGap(
+                difficulty = _selectedDifficulty.value
+            )
+        } else {
+            PromptGenerator.generateClassicSpark(
+                difficulty = _selectedDifficulty.value,
+                lockState = _lockState.value,
+                enabledCategories = preferences.value.enabledCategories
+            )
+        }
         _currentPrompt.value = nextPrompt
         _rerollTrigger.value += 1
 
         viewModelScope.launch {
             val id = repository.savePrompt(nextPrompt)
-            _currentPrompt.value = nextPrompt.copy(id = id)
+            _currentPrompt.value = nextPrompt.copyWithId(id)
         }
     }
 
     fun toggleCategoryLock(category: PromptCategory) {
         val prompt = _currentPrompt.value
-        val currentValue = prompt.getCategoryValue(category)
+        val currentValue = when (prompt) {
+            is ClassicSpark -> prompt.getCategoryValue(category)
+            is CreativeGap -> if (category == PromptCategory.STYLE) prompt.style else if (category == PromptCategory.CHALLENGE) prompt.challenge else ""
+        }
         _lockState.value = _lockState.value.toggleLock(category, currentValue)
     }
 
     fun setCategoryMode(category: PromptCategory, mode: CategorySelectionMode) {
-        val currentValue = _currentPrompt.value.getCategoryValue(category)
+        val prompt = _currentPrompt.value
+        val currentValue = when (prompt) {
+            is ClassicSpark -> prompt.getCategoryValue(category)
+            is CreativeGap -> if (category == PromptCategory.STYLE) prompt.style else if (category == PromptCategory.CHALLENGE) prompt.challenge else ""
+        }
         _lockState.value = _lockState.value.setCategoryMode(category, mode, fallbackValue = currentValue)
     }
 
@@ -134,19 +151,12 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     private fun applyDirectCategoryChange(category: PromptCategory, value: String, isCustom: Boolean) {
         val curr = _currentPrompt.value
-        val newCustomCats = if (isCustom) curr.customCategories + category else curr.customCategories - category
-        val updated = when (category) {
-            PromptCategory.TRAIT -> curr.copy(trait = value, customCategories = newCustomCats)
-            PromptCategory.SUBJECT -> curr.copy(subject = value, customCategories = newCustomCats)
-            PromptCategory.ACTION -> curr.copy(action = value, customCategories = newCustomCats)
-            PromptCategory.ENVIRONMENT -> curr.copy(environment = value, customCategories = newCustomCats)
-            PromptCategory.ATMOSPHERE -> curr.copy(atmosphere = value, customCategories = newCustomCats)
-            PromptCategory.STYLE -> curr.copy(style = value, customCategories = newCustomCats)
-            PromptCategory.CHALLENGE -> curr.copy(challenge = value, customCategories = newCustomCats)
-        }
-        _currentPrompt.value = updated
-        viewModelScope.launch {
-            repository.savePrompt(updated)
+        if (curr is ClassicSpark) {
+            val updated = curr.withCategory(category, value, isCustom)
+            _currentPrompt.value = updated
+            viewModelScope.launch {
+                repository.savePrompt(updated)
+            }
         }
     }
 
@@ -156,18 +166,52 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     fun setDifficulty(difficulty: Difficulty) {
         _selectedDifficulty.value = difficulty
+        val updated = _currentPrompt.value.withDifficulty(difficulty)
+        _currentPrompt.value = updated
+        viewModelScope.launch {
+            repository.savePrompt(updated)
+        }
     }
 
     fun toggleCreativeGapMode() {
-        val newMode = !_isCreativeGapMode.value
-        _isCreativeGapMode.value = newMode
-        reroll()
+        setCreativeGapMode(!_isCreativeGapMode.value)
     }
 
     fun setCreativeGapMode(active: Boolean) {
-        if (_isCreativeGapMode.value != active) {
-            _isCreativeGapMode.value = active
-            reroll()
+        if (_isCreativeGapMode.value == active) return
+        _isCreativeGapMode.value = active
+        val current = _currentPrompt.value
+        if (active) {
+            val gapPrompt = if (current is CreativeGap) current else {
+                PromptGenerator.generateCreativeGap(
+                    difficulty = _selectedDifficulty.value
+                ).copy(
+                    style = current.style,
+                    challenge = current.challenge
+                )
+            }
+            _currentPrompt.value = gapPrompt
+            _rerollTrigger.value += 1
+            viewModelScope.launch {
+                val id = repository.savePrompt(gapPrompt)
+                _currentPrompt.value = gapPrompt.copyWithId(id)
+            }
+        } else {
+            val classicPrompt = if (current is ClassicSpark) current else {
+                PromptGenerator.generateClassicSpark(
+                    difficulty = _selectedDifficulty.value,
+                    lockState = _lockState.value
+                ).copy(
+                    artStyle = current.style,
+                    creativeChallenge = current.challenge
+                )
+            }
+            _currentPrompt.value = classicPrompt
+            _rerollTrigger.value += 1
+            viewModelScope.launch {
+                val id = repository.savePrompt(classicPrompt)
+                _currentPrompt.value = classicPrompt.copyWithId(id)
+            }
         }
     }
 
@@ -175,47 +219,54 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         val prompt = _currentPrompt.value
         viewModelScope.launch {
             val newFavStatus = !prompt.isFavorite
-            _currentPrompt.value = prompt.copy(isFavorite = newFavStatus)
+            _currentPrompt.value = prompt.copyWithFavorite(newFavStatus)
             repository.toggleFavorite(prompt)
         }
     }
 
-    fun toggleFavorite(prompt: ArtPrompt) {
+    fun toggleFavorite(prompt: DiscoverPrompt) {
         viewModelScope.launch {
             repository.toggleFavorite(prompt)
             if (_currentPrompt.value.id == prompt.id) {
-                _currentPrompt.value = _currentPrompt.value.copy(isFavorite = !prompt.isFavorite)
+                _currentPrompt.value = _currentPrompt.value.copyWithFavorite(!prompt.isFavorite)
             }
         }
     }
 
-    fun loadAndRerollSimilar(prompt: ArtPrompt, onNavigateToDiscover: () -> Unit) {
+    fun loadAndRerollSimilar(prompt: DiscoverPrompt, onNavigateToDiscover: () -> Unit) {
         _selectedDifficulty.value = prompt.difficulty
-        _isCreativeGapMode.value = prompt.isCreativeGap
-        _lockState.value = PromptLockState(
-            lockedCategories = setOf(PromptCategory.SUBJECT, PromptCategory.STYLE),
-            lockedValues = mapOf(
-                PromptCategory.SUBJECT to prompt.subject,
-                PromptCategory.STYLE to prompt.style
-            )
-        )
+        _isCreativeGapMode.value = (prompt.promptType == PromptType.CREATIVE_GAP)
+        when (prompt) {
+            is ClassicSpark -> {
+                _lockState.value = PromptLockState(
+                    lockedCategories = setOf(PromptCategory.SUBJECT, PromptCategory.STYLE),
+                    lockedValues = mapOf(
+                        PromptCategory.SUBJECT to prompt.subjectCharacter,
+                        PromptCategory.STYLE to prompt.artStyle
+                    )
+                )
+            }
+            is CreativeGap -> {
+                _lockState.value = PromptLockState()
+            }
+        }
         reroll()
         onNavigateToDiscover()
     }
 
-    fun loadPromptToWorkspace(prompt: ArtPrompt, onNavigateToDiscover: () -> Unit) {
+    fun loadPromptToWorkspace(prompt: DiscoverPrompt, onNavigateToDiscover: () -> Unit) {
         _selectedDifficulty.value = prompt.difficulty
-        _isCreativeGapMode.value = prompt.isCreativeGap
+        _isCreativeGapMode.value = (prompt.promptType == PromptType.CREATIVE_GAP)
         _currentPrompt.value = prompt
         _rerollTrigger.value += 1
         onNavigateToDiscover()
     }
 
-    fun deletePrompt(prompt: ArtPrompt) {
+    fun deletePrompt(prompt: DiscoverPrompt) {
         viewModelScope.launch {
             repository.deletePrompt(prompt)
             if (_currentPrompt.value.id == prompt.id) {
-                _currentPrompt.value = _currentPrompt.value.copy(isFavorite = false)
+                _currentPrompt.value = _currentPrompt.value.copyWithFavorite(false)
             }
         }
     }
@@ -262,39 +313,77 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     // Brainstorm Session & AI Actions
     // ==========================================
 
-    fun startNewBrainstorm(seedPrompt: ArtPrompt? = null) {
+    fun startNewBrainstorm(seedPrompt: DiscoverPrompt? = null, promptType: PromptType? = null) {
+        val targetType = promptType ?: seedPrompt?.promptType ?: if (_isCreativeGapMode.value) PromptType.CREATIVE_GAP else PromptType.CLASSIC_SPARK
+
         if (seedPrompt != null) {
-            val initialAiMsg = BrainstormMessage(
-                sender = MessageSender.AI,
-                text = "Let's work on your current idea:\n\n**${seedPrompt.narrativeText}**\n\nWhat would you like to change or explore?",
-                quickPills = listOf("Expand details", "Simplify for sketch", "Twist setting", "Change style", "Make variations"),
-                idea = ArtSparkIdea(
-                    subject = seedPrompt.subject,
-                    trait = seedPrompt.trait,
-                    action = seedPrompt.action,
-                    environment = seedPrompt.environment,
-                    atmosphere = seedPrompt.atmosphere,
-                    style = seedPrompt.style,
-                    challenge = seedPrompt.challenge
-                ),
-                isContextSummary = true
-            )
-            _brainstormState.value = BrainstormUiState(
-                messages = listOf(initialAiMsg),
-                currentIdea = initialAiMsg.idea,
-                activeSeedPrompt = seedPrompt
-            )
+            when (seedPrompt) {
+                is ClassicSpark -> {
+                    val initialIdea = ClassicSparkIdea(
+                        difficulty = seedPrompt.difficulty,
+                        personalityTrait = seedPrompt.personalityTrait,
+                        subjectCharacter = seedPrompt.subjectCharacter,
+                        actionSituationScene = seedPrompt.actionSituationScene,
+                        environment = seedPrompt.environment,
+                        atmosphereWeather = seedPrompt.atmosphereWeather,
+                        artStyle = seedPrompt.artStyle,
+                        creativeChallenge = seedPrompt.creativeChallenge,
+                        storyHook = seedPrompt.storyHook,
+                        generatedSentence = seedPrompt.displayPromptText
+                    )
+                    val promptText = "Let's explore your Classic Spark prompt:\n\n**${seedPrompt.displayPromptText}**\n\nWhat category would you like to refine, twist, or explore?"
+                    val pills = listOf("Make atmosphere darker", "Change action / scene", "Try another art style", "Increase difficulty", "Make variations")
+                    val initialAiMsg = BrainstormMessage(
+                        sender = MessageSender.AI,
+                        text = promptText,
+                        quickPills = pills,
+                        idea = initialIdea,
+                        isContextSummary = true
+                    )
+                    _brainstormState.value = BrainstormUiState(
+                        messages = listOf(initialAiMsg),
+                        activePromptType = PromptType.CLASSIC_SPARK,
+                        currentIdea = initialIdea,
+                        activeSeedPrompt = seedPrompt
+                    )
+                }
+                is CreativeGap -> {
+                    val initialIdea = CreativeGapIdea(
+                        difficulty = seedPrompt.difficulty,
+                        gapSentence = seedPrompt.gapSentence,
+                        gapSuggestions = seedPrompt.displayGapSuggestions,
+                        style = seedPrompt.style,
+                        challenge = seedPrompt.challenge
+                    )
+                    val promptText = "Let's explore your Creative Gap prompt:\n\n**${seedPrompt.gapSentence}**\n\nWhat would you like to fill into the blank, or how shall we develop this fill-in-the-blank prompt?"
+                    val pills = listOf("Suggest twists for the blank", "Make it harder", "Suggest art style", "Surprise me with variations")
+                    val initialAiMsg = BrainstormMessage(
+                        sender = MessageSender.AI,
+                        text = promptText,
+                        quickPills = pills,
+                        idea = initialIdea,
+                        isContextSummary = true
+                    )
+                    _brainstormState.value = BrainstormUiState(
+                        messages = listOf(initialAiMsg),
+                        activePromptType = PromptType.CREATIVE_GAP,
+                        currentIdea = initialIdea,
+                        activeSeedPrompt = seedPrompt
+                    )
+                }
+            }
         } else {
             _brainstormState.value = BrainstormUiState(
                 messages = emptyList(),
+                activePromptType = targetType,
                 currentIdea = null,
                 activeSeedPrompt = null
             )
         }
     }
 
-    fun startBrainstormWithPrompt(prompt: ArtPrompt, onNavigateToBrainstorm: () -> Unit) {
-        startNewBrainstorm(seedPrompt = prompt)
+    fun startBrainstormWithPrompt(prompt: DiscoverPrompt, onNavigateToBrainstorm: () -> Unit) {
+        startNewBrainstorm(seedPrompt = prompt, promptType = prompt.promptType)
         onNavigateToBrainstorm()
     }
 
@@ -324,15 +413,9 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun sendQuickAiAction(action: QuickAiAction) {
-        val currentIdea = _brainstormState.value.currentIdea
-        val userPrompt = if (currentIdea != null && currentIdea.isComplete) {
-            "${action.title}: ${action.promptInstruction}"
-        } else if (_brainstormState.value.activeSeedPrompt != null) {
-            "${action.title}: ${action.promptInstruction}"
-        } else {
-            "${action.title}: Give me an inspiring concept with this focus."
-        }
-        sendBrainstormMessage(userPrompt)
+        val currentType = _brainstormState.value.activePromptType
+        val instruction = action.getInstruction(currentType)
+        sendBrainstormMessage("${action.title}: $instruction")
     }
 
     fun retryLastBrainstormMessage() {
@@ -356,7 +439,8 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
             val result = geminiClient.brainstorm(
                 messages = messages,
                 currentIdea = currentState.currentIdea,
-                seedPrompt = currentState.activeSeedPrompt
+                seedPrompt = currentState.activeSeedPrompt,
+                promptType = currentState.activePromptType
             )
 
             when (result) {
@@ -388,54 +472,68 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun applyBrainstormIdeaToWorkspace(idea: ArtSparkIdea, onNavigateToDiscover: () -> Unit) {
-        var newLockState = PromptLockState()
-        val customCats = mutableSetOf<PromptCategory>()
+    fun applyBrainstormIdeaToWorkspace(idea: BrainstormIdea, onNavigateToDiscover: () -> Unit) {
+        // Propagate updated difficulty to Discover
+        _selectedDifficulty.value = idea.difficulty
 
-        fun applyCategory(category: PromptCategory, rawValue: String) {
-            val value = rawValue.trim()
-            if (value.isNotBlank() && !value.equals("random", ignoreCase = true) && !value.equals("none", ignoreCase = true)) {
-                newLockState = newLockState.setCustomValue(category, value)
-                customCats.add(category)
-            } else {
-                newLockState = newLockState.setCategoryMode(category, CategorySelectionMode.RANDOM)
+        when (idea) {
+            is ClassicSparkIdea -> {
+                _isCreativeGapMode.value = false
+
+                var newLockState = PromptLockState()
+                val customCats = mutableSetOf<PromptCategory>()
+
+                fun applyCategory(category: PromptCategory, rawValue: String) {
+                    val value = rawValue.trim()
+                    if (value.isNotBlank() && !value.equals("random", ignoreCase = true) && !value.equals("none", ignoreCase = true)) {
+                        newLockState = newLockState.setCustomValue(category, value)
+                        customCats.add(category)
+                    } else {
+                        newLockState = newLockState.setCategoryMode(category, CategorySelectionMode.RANDOM)
+                    }
+                }
+
+                applyCategory(PromptCategory.TRAIT, idea.personalityTrait)
+                applyCategory(PromptCategory.SUBJECT, idea.subjectCharacter)
+                applyCategory(PromptCategory.ACTION, idea.actionSituationScene)
+                applyCategory(PromptCategory.ENVIRONMENT, idea.environment)
+                applyCategory(PromptCategory.ATMOSPHERE, idea.atmosphereWeather)
+                applyCategory(PromptCategory.STYLE, idea.artStyle)
+                applyCategory(PromptCategory.CHALLENGE, idea.creativeChallenge)
+
+                _lockState.value = newLockState
+
+                val updatedPrompt = idea.toDiscoverPrompt(
+                    id = System.currentTimeMillis()
+                ).let { spark ->
+                    spark.copy(customCategories = customCats)
+                }
+
+                _currentPrompt.value = updatedPrompt
+                _rerollTrigger.value += 1
+
+                viewModelScope.launch {
+                    val savedId = repository.savePrompt(updatedPrompt)
+                    _currentPrompt.value = updatedPrompt.copyWithId(savedId)
+                }
             }
-        }
+            is CreativeGapIdea -> {
+                _isCreativeGapMode.value = true
 
-        applyCategory(PromptCategory.SUBJECT, idea.subject)
-        applyCategory(PromptCategory.TRAIT, idea.trait)
-        applyCategory(PromptCategory.ACTION, idea.action)
-        applyCategory(PromptCategory.ENVIRONMENT, idea.environment)
-        applyCategory(PromptCategory.ATMOSPHERE, idea.atmosphere)
-        applyCategory(PromptCategory.STYLE, idea.style)
-        applyCategory(PromptCategory.CHALLENGE, idea.challenge)
+                val updatedPrompt = idea.toDiscoverPrompt(
+                    id = System.currentTimeMillis()
+                )
 
-        _lockState.value = newLockState
+                _currentPrompt.value = updatedPrompt
+                _rerollTrigger.value += 1
 
-        val updatedPrompt = ArtPrompt(
-            id = System.currentTimeMillis(),
-            trait = if (newLockState.isLocked(PromptCategory.TRAIT)) newLockState.getCustomValue(PromptCategory.TRAIT).ifBlank { newLockState.getSelectedValue(PromptCategory.TRAIT) } else "",
-            subject = if (newLockState.isLocked(PromptCategory.SUBJECT)) newLockState.getCustomValue(PromptCategory.SUBJECT).ifBlank { newLockState.getSelectedValue(PromptCategory.SUBJECT) } else "Creature",
-            action = if (newLockState.isLocked(PromptCategory.ACTION)) newLockState.getCustomValue(PromptCategory.ACTION).ifBlank { newLockState.getSelectedValue(PromptCategory.ACTION) } else "",
-            environment = if (newLockState.isLocked(PromptCategory.ENVIRONMENT)) newLockState.getCustomValue(PromptCategory.ENVIRONMENT).ifBlank { newLockState.getSelectedValue(PromptCategory.ENVIRONMENT) } else "",
-            atmosphere = if (newLockState.isLocked(PromptCategory.ATMOSPHERE)) newLockState.getCustomValue(PromptCategory.ATMOSPHERE).ifBlank { newLockState.getSelectedValue(PromptCategory.ATMOSPHERE) } else "",
-            style = if (newLockState.isLocked(PromptCategory.STYLE)) newLockState.getCustomValue(PromptCategory.STYLE).ifBlank { newLockState.getSelectedValue(PromptCategory.STYLE) } else "",
-            challenge = if (newLockState.isLocked(PromptCategory.CHALLENGE)) newLockState.getCustomValue(PromptCategory.CHALLENGE).ifBlank { newLockState.getSelectedValue(PromptCategory.CHALLENGE) } else "",
-            isCreativeGap = false,
-            difficulty = _selectedDifficulty.value,
-            timestamp = System.currentTimeMillis(),
-            customCategories = customCats
-        )
-
-        _currentPrompt.value = updatedPrompt
-        _rerollTrigger.value += 1
-
-        viewModelScope.launch {
-            val savedId = repository.savePrompt(updatedPrompt)
-            _currentPrompt.value = updatedPrompt.copy(id = savedId)
+                viewModelScope.launch {
+                    val savedId = repository.savePrompt(updatedPrompt)
+                    _currentPrompt.value = updatedPrompt.copyWithId(savedId)
+                }
+            }
         }
 
         onNavigateToDiscover()
     }
 }
-

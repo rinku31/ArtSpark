@@ -79,6 +79,7 @@ import com.example.model.ArtPrompt
 import com.example.model.CategorySelectionMode
 import com.example.model.PromptCategory
 import com.example.model.PromptLockState
+import com.example.model.getCategoryValue
 import com.example.ui.theme.CoralRed
 import com.example.ui.theme.IrisPurple
 import com.example.ui.theme.MintTeal

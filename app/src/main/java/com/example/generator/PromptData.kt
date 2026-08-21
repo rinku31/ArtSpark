@@ -92,22 +92,135 @@ object PromptData {
         "Focus on exaggerated textures and patterns"
     )
 
-    // Creative Gap Templates with intentional blank for the artist's imagination
-    val creativeGapTemplates = listOf(
-        "A curious %s discovers a mysterious ______ hidden beneath an ancient %s.",
-        "A lonely %s finds something extraordinary inside an abandoned %s.",
-        "The potion master's %s contains a secret doorway leading directly to ______.",
-        "A sleepy %s carefully protects ______ during %s.",
-        "An ancient %s awakens after centuries to find ______ resting in its hands.",
-        "A traveling %s plays a strange melody that causes ______ to sprout across %s.",
-        "Inside the forgotten %s, a glowing container reveals ______.",
-        "A mischievous %s attempts to trade a shiny coin for ______.",
-        "Beneath %s, two unexpected friends share ______ during %s.",
-        "A weary %s looks up at the sky and notices ______ descending from the clouds.",
-        "The wizard accidentally cast a spell that transformed their hat into ______.",
-        "In the heart of %s, the royal %s is crowned with ______ instead of gold.",
-        "A tiny %s builds a cozy home out of ______ inside %s."
+    data class CreativeGapTemplateDef(
+        val template: String,
+        val blankPosition: String,
+        val starters: List<String>
     )
+
+    // Structured Creative Gap Definitions with intentional blank and position role
+    val creativeGapDefinitions = listOf(
+        CreativeGapTemplateDef(
+            template = "A curious %s discovers a mysterious ______ hidden beneath an ancient %s.",
+            blankPosition = "mysterious discovery",
+            starters = listOf(
+                "a miniature pocket universe in a bottle",
+                "a crystal that captures forgotten memories",
+                "a glowing key that opens whatever door you draw"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "A lonely %s finds something extraordinary inside an abandoned %s.",
+            blankPosition = "extraordinary discovery",
+            starters = listOf(
+                "a mechanical moth with stained-glass wings",
+                "a seedling that grows into clockwork gears",
+                "a lantern fueled by glowing starlight"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "The potion master's %s contains a secret doorway leading directly to ______.",
+            blankPosition = "secret realm / destination",
+            starters = listOf(
+                "a realm of floating liquid islands",
+                "a garden where memories grow as flowers",
+                "a library of unwritten futures"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "A sleepy %s carefully protects ______ during %s.",
+            blankPosition = "treasured object / creature",
+            starters = listOf(
+                "a delicate egg made of blown glass",
+                "a slumbering constellation in a jar",
+                "a tiny dragon no bigger than a teacup"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "An ancient %s awakens after centuries to find ______ resting in its hands.",
+            blankPosition = "mysterious relic / organism",
+            starters = listOf(
+                "a blooming mechanical lotus",
+                "a compass pointing toward whatever you miss most",
+                "a forgotten crown made of autumn leaves"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "A traveling %s plays a strange melody that causes ______ to sprout across %s.",
+            blankPosition = "magical flora / phenomenon",
+            starters = listOf(
+                "luminescent crystal mushrooms",
+                "whispering golden vines",
+                "floating origami butterflies"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "Inside the forgotten %s, a glowing container reveals ______.",
+            blankPosition = "glowing contents / surprise",
+            starters = listOf(
+                "a miniature galaxy spinning silently",
+                "a potion that changes ink into living birds",
+                "a parchment map that redraws itself"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "A mischievous %s attempts to trade a shiny coin for ______.",
+            blankPosition = "desired trade item / oddity",
+            starters = listOf(
+                "a bottle of captured lightning",
+                "a key made of frozen moonlight",
+                "a pair of glasses that see through time"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "Beneath %s, two unexpected friends share ______ during %s.",
+            blankPosition = "shared treasure / moment",
+            starters = listOf(
+                "a cup of hot star-dew tea",
+                "a secret book of celestial constellations",
+                "a pastry baked from forgotten memories"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "A weary %s looks up at the sky and notices ______ descending from the clouds.",
+            blankPosition = "aerial arrival / phenomenon",
+            starters = listOf(
+                "a celestial airship with silk sails",
+                "a falling star with feathered wings",
+                "a giant clockwork constellation"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "The wizard accidentally cast a spell that transformed their hat into ______.",
+            blankPosition = "magical transformation",
+            starters = listOf(
+                "a tiny terrarium of miniature fireflies",
+                "a living nest of origami songbirds",
+                "a portal spilling starry mist"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "In the heart of %s, the royal %s is crowned with ______ instead of gold.",
+            blankPosition = "symbolic crown / relic",
+            starters = listOf(
+                "a wreath of glowing bioluminescent moss",
+                "a circlet of frozen northern lights",
+                "a halo of floating ancient runes"
+            )
+        ),
+        CreativeGapTemplateDef(
+            template = "A tiny %s builds a cozy home out of ______ inside %s.",
+            blankPosition = "crafting material / structure",
+            starters = listOf(
+                "clockwork pocket watch gears",
+                "hollowed-out quartz crystals",
+                "stacked tea cups and vintage postage stamps"
+            )
+        )
+    )
+
+    // Creative Gap Templates with intentional blank for the artist's imagination
+    val creativeGapTemplates = creativeGapDefinitions.map { it.template }
 
     // Thought-starter inspiration chips when user explores Creative Gap
     val gapInspirationIdeas = listOf(

@@ -5,10 +5,16 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
 import com.example.BuildConfig
-import com.example.model.ArtPrompt
-import com.example.model.ArtSparkIdea
+import com.example.model.BrainstormIdea
 import com.example.model.BrainstormMessage
+import com.example.model.ClassicSpark
+import com.example.model.ClassicSparkIdea
+import com.example.model.CreativeGap
+import com.example.model.CreativeGapIdea
+import com.example.model.Difficulty
+import com.example.model.DiscoverPrompt
 import com.example.model.MessageSender
+import com.example.model.PromptType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,8 +30,9 @@ sealed class GeminiResult {
     data class Success(
         val replyText: String,
         val quickPills: List<String>,
-        val idea: ArtSparkIdea?,
-        val actionType: String
+        val idea: BrainstormIdea?,
+        val actionType: String,
+        val detectedPromptType: PromptType = idea?.promptType ?: PromptType.CLASSIC_SPARK
     ) : GeminiResult()
 
     data class Error(
@@ -42,47 +49,61 @@ class GeminiApiClient(private val context: Context) {
         private const val MODEL_NAME = "gemini-3.5-flash"
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
-        private const val SYSTEM_INSTRUCTION = """
+        private const val SYSTEM_INSTRUCTION_UNIFIED = """
 You are the AI creative brainstorming partner in ArtSpark — an Android application that inspires artists with playful, imaginative, and actionable art prompts.
 
-Your goal is to have an encouraging, inspiring conversation with an artist to discover, develop, and refine an art idea they want to create.
+ArtSpark features TWO distinct prompt types:
 
-CORE BEHAVIOR RULES:
-1. Tone: Enthusiastic, supportive, playful, visual, and artist-friendly. Never patronizing or judgmental.
-2. Brevity: Keep conversational text concise (2-4 sentences max). Never write huge walls of text.
-3. Visual Focus: Suggest evocative visual details, lighting, poses, compositions, colors, and textures.
-4. ArtSpark Categories: You are deeply integrated with the ArtSpark category system:
-   - Subject: Central creature, person, object, or entity (e.g. "Frog", "Cyberpunk Samurai", "Ghost Florist")
-   - Personality / Trait: Character mood, posture, or quirk (e.g. "Curious", "Sleepy", "Grumpy", "Heroic")
-   - Action / Situation: What they are doing (e.g. "baking croissants", "reading ancient scrolls", "stargazing")
-   - Environment: Setting, architecture, landscape (e.g. "Magical Bakery", "Overgrown Greenhouse", "Neon Rooftop")
-   - Atmosphere / Weather: Lighting, mood, weather (e.g. "Moody candlelight", "Golden sunset", "Thunderstorm")
-   - Art Style: Illustration medium/technique (e.g. "Storybook Watercolor", "Gouache & Ink", "90s Anime", "Chiaroscuro Oil")
-   - Creative Challenge: Fun constraint (e.g. "3 colors only", "15 minute sketch", "Dramatic low angle", "Inverted values")
-5. Continuous Context & Partial Modifications:
-   - If the user modifies an aspect (e.g. "Make the character a dragon", "Make it darker", "Change the style to watercolor"), PRESERVE all other previous idea fields and ONLY update the requested category.
-   - If the user references pronouns like "him", "her", or "it", refer to the current character/subject in conversation.
-6. Quick Choice Pills:
-   - ALWAYS provide 3-5 concise, clickable choice options in `quickPills` (e.g., ["Cute", "Weird", "Dark", "Epic"] or ["Watercolor", "Pixel Art", "Retro Comic"] or ["Add a companion", "Make it floating in space"]).
-7. Output Format:
-   - ALWAYS return valid JSON strictly conforming to this schema:
-   {
-     "reply": "Your concise, friendly, conversational reply (markdown allowed).",
-     "quickPills": ["Choice 1", "Choice 2", "Choice 3", "Choice 4"],
-     "hasIdea": true/false,
-     "idea": {
-       "subject": "...",
-       "trait": "...",
-       "action": "...",
-       "environment": "...",
-       "atmosphere": "...",
-       "style": "...",
-       "challenge": "..."
-     },
-     "actionType": "GENERATE_IDEA" | "UPDATE_CATEGORY" | "CREATE_VARIATIONS" | "SUGGEST_CHANGES" | "CONVERSE"
-   }
-   - When a viable, fun idea is present or updated, set `hasIdea: true` and populate `idea`.
-   - If the idea is still very early and the user hasn't chosen a core direction yet, `hasIdea` can be false and `idea` can be null or empty.
+1. CLASSIC SPARK (7 Structured Categories):
+   - `personality`: Character mood, posture, personality, or quirk (e.g. "Curious", "Sleepy", "Heroic").
+   - `subject`: Central creature, character, figure, object, or entity (e.g. "Cyberpunk Samurai", "Overgrown Golem", "Little Fox Explorer").
+   - `scene`: What they are doing, the situation, or dynamic scene (e.g. "baking glowing pastries", "repairing a clockwork dragon").
+   - `environment`: Setting, terrain, or architecture (e.g. "Sunken Crystal Library", "Neon Rooftop").
+   - `atmosphere`: Lighting, weather, time of day, mood (e.g. "Moody candlelight and rain", "Golden sunset glow").
+   - `style`: Artistic medium, rendering technique (e.g. "Storybook Watercolor", "Gouache & Ink", "90s Anime").
+   - `challenge`: Creative drawing constraint (e.g. "Use 3 colors only", "15 minute sketch").
+   - `storyHook`: (optional) 1-sentence narrative spark.
+   - `difficulty`: "EASY", "MEDIUM", or "HARD".
+
+2. CREATIVE GAP (Fill-In-The-Blank):
+   - `gapSentence`: An evocative sentence containing `______` as the blank to be filled in (e.g. "A lonely automaton searches for a missing ______ in the neon fog.").
+   - `gapSuggestions`: At least 3 creative, distinct idea starters for what could go in the blank.
+   - `style`: Suggested art medium / rendering style (e.g. "Gouache on textured paper", "Risograph Print").
+   - `challenge`: Creative drawing constraint.
+   - `difficulty`: "EASY", "MEDIUM", or "HARD".
+
+PROMPT TYPE DETERMINATION:
+- If the user explicitly asks for a "creative gap", "fill in the blank", "gap sentence", "gap prompt", or if the active session is exploring a Creative Gap, set `ideaType` to "CREATIVE_GAP" and provide the Creative Gap structure.
+- If the user explicitly asks for a "classic spark", "7 categories", "inspiration board", or if the active session is exploring a Classic Spark, set `ideaType` to "CLASSIC_SPARK" and provide all 7 Classic Spark categories.
+- Otherwise, follow the active prompt mode provided in the active context below.
+
+RULES:
+1. When generating a Creative Gap, ALWAYS KEEP THE BLANK (`______`) in `gapSentence`. Do NOT remove the blank. Provide 3-5 distinct `gapSuggestions`.
+2. When generating a Classic Spark, provide all 7 categories (`personality`, `subject`, `scene`, `environment`, `atmosphere`, `style`, `challenge`).
+3. When asked to make it harder / increase difficulty, set difficulty to "HARD" and introduce an intriguing constraint. When asked to simplify / make easier, set difficulty to "EASY".
+4. Always include 3-5 concise, clickable options in `quickPills` that offer relevant next steps or twists.
+5. Tone: Enthusiastic, playful, artist-friendly, and concise (2-3 sentences max).
+6. Output format must strictly match this JSON schema:
+{
+  "reply": "Concise conversational reply (markdown allowed).",
+  "quickPills": ["Choice 1", "Choice 2", "Choice 3", "Choice 4"],
+  "hasIdea": true,
+  "ideaType": "CLASSIC_SPARK" | "CREATIVE_GAP",
+  "idea": {
+    "difficulty": "EASY" | "MEDIUM" | "HARD",
+    "personality": "...",
+    "subject": "...",
+    "scene": "...",
+    "environment": "...",
+    "atmosphere": "...",
+    "style": "...",
+    "challenge": "...",
+    "storyHook": "...",
+    "gapSentence": "Sentence containing ______",
+    "gapSuggestions": ["Starter 1", "Starter 2", "Starter 3"]
+  },
+  "actionType": "GENERATE_IDEA" | "UPDATE_CATEGORY" | "CREATE_VARIATIONS" | "SUGGEST_CHANGES" | "CONVERSE"
+}
 """
     }
 
@@ -99,14 +120,15 @@ CORE BEHAVIOR RULES:
             val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
             capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } catch (e: Exception) {
-            true // fallback
+            true
         }
     }
 
     suspend fun brainstorm(
         messages: List<BrainstormMessage>,
-        currentIdea: ArtSparkIdea?,
-        seedPrompt: ArtPrompt?
+        currentIdea: BrainstormIdea?,
+        seedPrompt: DiscoverPrompt?,
+        promptType: PromptType
     ): GeminiResult = withContext(Dispatchers.IO) {
         val apiKey = try {
             BuildConfig.GEMINI_API_KEY
@@ -130,7 +152,7 @@ CORE BEHAVIOR RULES:
 
         try {
             val endpoint = "$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey"
-            val requestJson = buildRequestBody(messages, currentIdea, seedPrompt)
+            val requestJson = buildRequestBody(messages, currentIdea, seedPrompt, promptType)
 
             val body = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val request = Request.Builder()
@@ -150,7 +172,7 @@ CORE BEHAVIOR RULES:
                 return@withContext GeminiResult.Error(errorMsg)
             }
 
-            parseGeminiResponse(responseBody, currentIdea)
+            parseGeminiResponse(responseBody, currentIdea, seedPrompt, promptType)
         } catch (e: IOException) {
             Log.e(TAG, "Network error during Gemini request", e)
             GeminiResult.Error(
@@ -165,35 +187,55 @@ CORE BEHAVIOR RULES:
 
     private fun buildRequestBody(
         messages: List<BrainstormMessage>,
-        currentIdea: ArtSparkIdea?,
-        seedPrompt: ArtPrompt?
+        currentIdea: BrainstormIdea?,
+        seedPrompt: DiscoverPrompt?,
+        promptType: PromptType
     ): JSONObject {
         val root = JSONObject()
 
         // System Instruction
         val systemInstructionObj = JSONObject()
         val sysParts = JSONArray()
-        var fullSysPrompt = SYSTEM_INSTRUCTION
+        var fullSysPrompt = SYSTEM_INSTRUCTION_UNIFIED
 
-        if (currentIdea != null && currentIdea.isComplete) {
-            fullSysPrompt += "\n\nCURRENT WORKING IDEA IN MEMORY:\n" +
-                    "- Subject: ${currentIdea.subject}\n" +
-                    "- Trait: ${currentIdea.trait}\n" +
-                    "- Action: ${currentIdea.action}\n" +
-                    "- Environment: ${currentIdea.environment}\n" +
-                    "- Atmosphere: ${currentIdea.atmosphere}\n" +
-                    "- Style: ${currentIdea.style}\n" +
-                    "- Challenge: ${currentIdea.challenge}\n"
-        } else if (seedPrompt != null) {
-            fullSysPrompt += "\n\nCURRENT SEED PROMPT FROM DISCOVER:\n" +
-                    "- Subject: ${seedPrompt.subject}\n" +
-                    "- Trait: ${seedPrompt.trait}\n" +
-                    "- Action: ${seedPrompt.action}\n" +
-                    "- Environment: ${seedPrompt.environment}\n" +
-                    "- Atmosphere: ${seedPrompt.atmosphere}\n" +
-                    "- Style: ${seedPrompt.style}\n" +
-                    "- Challenge: ${seedPrompt.challenge}\n" +
-                    "- Full Prompt: ${seedPrompt.narrativeText}\n"
+        // Append active context
+        when (promptType) {
+            PromptType.CLASSIC_SPARK -> {
+                val classicIdea = currentIdea as? ClassicSparkIdea
+                val classicSeed = seedPrompt as? ClassicSpark
+                val p = classicIdea?.personalityTrait ?: classicSeed?.personalityTrait.orEmpty()
+                val s = classicIdea?.subjectCharacter ?: classicSeed?.subjectCharacter.orEmpty()
+                val sc = classicIdea?.actionSituationScene ?: classicSeed?.actionSituationScene.orEmpty()
+                val env = classicIdea?.environment ?: classicSeed?.environment.orEmpty()
+                val atm = classicIdea?.atmosphereWeather ?: classicSeed?.atmosphereWeather.orEmpty()
+                val sty = classicIdea?.artStyle ?: classicSeed?.artStyle.orEmpty()
+                val ch = classicIdea?.creativeChallenge ?: classicSeed?.creativeChallenge.orEmpty()
+                val diff = classicIdea?.difficulty ?: classicSeed?.difficulty ?: Difficulty.MEDIUM
+
+                fullSysPrompt += "\n\nACTIVE CONTEXT MODE: CLASSIC SPARK (Difficulty: ${diff.name}):\n" +
+                        "• Personality/Trait: $p\n" +
+                        "• Subject/Character: $s\n" +
+                        "• Scene/Action: $sc\n" +
+                        "• Environment: $env\n" +
+                        "• Atmosphere/Weather: $atm\n" +
+                        "• Art Style: $sty\n" +
+                        "• Creative Challenge: $ch\n"
+            }
+            PromptType.CREATIVE_GAP -> {
+                val gapIdea = currentIdea as? CreativeGapIdea
+                val gapSeed = seedPrompt as? CreativeGap
+                val sentence = gapIdea?.gapSentence ?: gapSeed?.gapSentence.orEmpty()
+                val suggestions = gapIdea?.gapSuggestions ?: gapSeed?.displayGapSuggestions ?: emptyList()
+                val sty = gapIdea?.style ?: gapSeed?.style.orEmpty()
+                val ch = gapIdea?.challenge ?: gapSeed?.challenge.orEmpty()
+                val diff = gapIdea?.difficulty ?: gapSeed?.difficulty ?: Difficulty.MEDIUM
+
+                fullSysPrompt += "\n\nACTIVE CONTEXT MODE: CREATIVE GAP (Difficulty: ${diff.name}):\n" +
+                        "• Gap Sentence: \"$sentence\"\n" +
+                        "• Fill-in Suggestions: ${suggestions.joinToString(", ")}\n" +
+                        "• Style: $sty\n" +
+                        "• Challenge: $ch\n"
+            }
         }
 
         sysParts.put(JSONObject().put("text", fullSysPrompt))
@@ -202,8 +244,6 @@ CORE BEHAVIOR RULES:
 
         // Contents (conversation history)
         val contentsArray = JSONArray()
-
-        // Filter valid user / AI messages (excluding errors)
         val validHistory = messages.filter { !it.isError }
 
         for (msg in validHistory) {
@@ -213,23 +253,39 @@ CORE BEHAVIOR RULES:
 
             val partsArray = JSONArray()
             val textContent = if (msg.sender == MessageSender.AI && msg.idea != null) {
-                // If model message had structured idea, provide summary for LLM context
-                "${msg.text}\n[Idea: Subject=${msg.idea.subject}, Trait=${msg.idea.trait}, Env=${msg.idea.environment}, Style=${msg.idea.style}]"
+                when (val idea = msg.idea) {
+                    is ClassicSparkIdea -> {
+                        "${msg.text}\n[Classic Spark State (Difficulty: ${idea.difficulty.name}): Personality: ${idea.personalityTrait}, Subject: ${idea.subjectCharacter}, Scene: ${idea.actionSituationScene}, Environment: ${idea.environment}, Atmosphere: ${idea.atmosphereWeather}, Style: ${idea.artStyle}, Challenge: ${idea.creativeChallenge}]"
+                    }
+                    is CreativeGapIdea -> {
+                        "${msg.text}\n[Creative Gap State (Difficulty: ${idea.difficulty.name}): Gap Sentence: \"${idea.gapSentence}\", Suggestions: ${idea.gapSuggestions.joinToString(", ")}, Style: ${idea.style}, Challenge: ${idea.challenge}]"
+                    }
+                }
             } else {
                 msg.text
             }
             partsArray.put(JSONObject().put("text", textContent))
             contentObj.put("parts", partsArray)
-
             contentsArray.put(contentObj)
         }
 
-        // If history is empty, add a greeting prompt
+        // If history is empty, add initial prompt
         if (contentsArray.length() == 0) {
-            val initialPrompt = if (seedPrompt != null) {
-                "I want to brainstorm around my current prompt: \"${seedPrompt.narrativeText}\". How can we expand or twist this idea?"
-            } else {
-                "Hello! Let's brainstorm a new creative art idea."
+            val initialPrompt = when (promptType) {
+                PromptType.CLASSIC_SPARK -> {
+                    if (seedPrompt is ClassicSpark) {
+                        "Let's brainstorm this Classic Spark:\n\"${seedPrompt.displayPromptText}\"\nHow can we develop, refine, or twist this concept?"
+                    } else {
+                        "Hello! Let's brainstorm a fresh Classic Spark artwork prompt."
+                    }
+                }
+                PromptType.CREATIVE_GAP -> {
+                    if (seedPrompt is CreativeGap) {
+                        "Let's brainstorm this Creative Gap prompt:\n\"${seedPrompt.gapSentence}\"\nWhat are some imaginative ideas for the blank?"
+                    } else {
+                        "Hello! Let's brainstorm a fresh Creative Gap artwork prompt."
+                    }
+                }
             }
             val contentObj = JSONObject()
             contentObj.put("role", "user")
@@ -250,7 +306,12 @@ CORE BEHAVIOR RULES:
         return root
     }
 
-    private fun parseGeminiResponse(rawJson: String, previousIdea: ArtSparkIdea?): GeminiResult {
+    private fun parseGeminiResponse(
+        rawJson: String,
+        previousIdea: BrainstormIdea?,
+        seedPrompt: DiscoverPrompt?,
+        promptType: PromptType
+    ): GeminiResult {
         return try {
             val root = JSONObject(rawJson)
             val candidates = root.optJSONArray("candidates")
@@ -264,11 +325,10 @@ CORE BEHAVIOR RULES:
                 return GeminiResult.Error("Received empty response from Gemini.")
             }
 
-            // Parse inner JSON returned by Gemini
             val cleanedJsonText = cleanJsonFence(text)
             val parsedObj = JSONObject(cleanedJsonText)
 
-            val reply = parsedObj.optString("reply", "Here's an idea for your artwork!").trim()
+            val reply = parsedObj.optString("reply", "Here is a fresh creative idea!").trim()
             val actionType = parsedObj.optString("actionType", "GENERATE_IDEA")
 
             val quickPillsList = mutableListOf<String>()
@@ -282,57 +342,112 @@ CORE BEHAVIOR RULES:
                 }
             }
 
-            val hasIdea = parsedObj.optBoolean("hasIdea", false)
             val ideaObj = parsedObj.optJSONObject("idea")
 
-            val structuredIdea = if (hasIdea && ideaObj != null) {
-                val baseSubj = ideaObj.optString("subject", previousIdea?.subject.orEmpty()).trim()
-                val baseTrait = ideaObj.optString("trait", previousIdea?.trait.orEmpty()).trim()
-                val baseAction = ideaObj.optString("action", previousIdea?.action.orEmpty()).trim()
-                val baseEnv = ideaObj.optString("environment", previousIdea?.environment.orEmpty()).trim()
-                val baseAtm = ideaObj.optString("atmosphere", previousIdea?.atmosphere.orEmpty()).trim()
-                val baseStyle = ideaObj.optString("style", previousIdea?.style.orEmpty()).trim()
-                val baseChallenge = ideaObj.optString("challenge", previousIdea?.challenge.orEmpty()).trim()
-
-                ArtSparkIdea(
-                    subject = baseSubj,
-                    trait = baseTrait,
-                    action = baseAction,
-                    environment = baseEnv,
-                    atmosphere = baseAtm,
-                    style = baseStyle,
-                    challenge = baseChallenge
-                )
-            } else if (ideaObj != null && (ideaObj.has("subject") || ideaObj.has("environment"))) {
-                // If idea fields were returned even if hasIdea wasn't explicitly true
-                ArtSparkIdea(
-                    subject = ideaObj.optString("subject", previousIdea?.subject.orEmpty()).trim(),
-                    trait = ideaObj.optString("trait", previousIdea?.trait.orEmpty()).trim(),
-                    action = ideaObj.optString("action", previousIdea?.action.orEmpty()).trim(),
-                    environment = ideaObj.optString("environment", previousIdea?.environment.orEmpty()).trim(),
-                    atmosphere = ideaObj.optString("atmosphere", previousIdea?.atmosphere.orEmpty()).trim(),
-                    style = ideaObj.optString("style", previousIdea?.style.orEmpty()).trim(),
-                    challenge = ideaObj.optString("challenge", previousIdea?.challenge.orEmpty()).trim()
-                )
-            } else {
-                previousIdea
+            // Determine if the returned idea is Creative Gap or Classic Spark
+            val rawIdeaType = parsedObj.optString("ideaType", ideaObj?.optString("type", "")).uppercase()
+            val isGap = when {
+                rawIdeaType == "CREATIVE_GAP" -> true
+                rawIdeaType == "CLASSIC_SPARK" -> false
+                ideaObj != null && (ideaObj.has("gapSentence") || ideaObj.has("gapSuggestions")) && !ideaObj.has("subject") && !ideaObj.has("scene") -> true
+                ideaObj != null && (ideaObj.has("subject") || ideaObj.has("scene") || ideaObj.has("environment") || ideaObj.has("personality")) -> false
+                else -> promptType == PromptType.CREATIVE_GAP
             }
+
+            val structuredIdea: BrainstormIdea? = if (isGap) {
+                val prevGap = previousIdea as? CreativeGapIdea
+                val seedGap = seedPrompt as? CreativeGap
+
+                val rawDiff = ideaObj?.optString("difficulty", prevGap?.difficulty?.name ?: seedGap?.difficulty?.name ?: "MEDIUM").orEmpty()
+                val difficulty = try {
+                    Difficulty.valueOf(rawDiff.uppercase())
+                } catch (e: Exception) {
+                    prevGap?.difficulty ?: seedGap?.difficulty ?: Difficulty.MEDIUM
+                }
+
+                val gapSentence = ideaObj?.optString("gapSentence", prevGap?.gapSentence ?: seedGap?.gapSentence.orEmpty())?.trim().orEmpty()
+                val suggestions = mutableListOf<String>()
+                val suggestionsArray = ideaObj?.optJSONArray("gapSuggestions") ?: ideaObj?.optJSONArray("suggestedFillIns")
+                if (suggestionsArray != null) {
+                    for (i in 0 until suggestionsArray.length()) {
+                        val s = suggestionsArray.optString(i).trim()
+                        if (s.isNotBlank()) suggestions.add(s)
+                    }
+                }
+                val finalSuggestions = if (suggestions.isNotEmpty()) suggestions else prevGap?.gapSuggestions ?: seedGap?.displayGapSuggestions ?: emptyList()
+                val style = ideaObj?.optString("style", prevGap?.style ?: seedGap?.style.orEmpty())?.trim().orEmpty()
+                val challenge = ideaObj?.optString("challenge", prevGap?.challenge ?: seedGap?.challenge.orEmpty())?.trim().orEmpty()
+
+                if (gapSentence.isNotBlank()) {
+                    CreativeGapIdea(
+                        difficulty = difficulty,
+                        gapSentence = gapSentence,
+                        gapSuggestions = finalSuggestions,
+                        style = style,
+                        challenge = challenge
+                    )
+                } else {
+                    prevGap
+                }
+            } else {
+                val prevClassic = previousIdea as? ClassicSparkIdea
+                val seedClassic = seedPrompt as? ClassicSpark
+
+                val rawDiff = ideaObj?.optString("difficulty", prevClassic?.difficulty?.name ?: seedClassic?.difficulty?.name ?: "MEDIUM").orEmpty()
+                val difficulty = try {
+                    Difficulty.valueOf(rawDiff.uppercase())
+                } catch (e: Exception) {
+                    prevClassic?.difficulty ?: seedClassic?.difficulty ?: Difficulty.MEDIUM
+                }
+
+                val personality = ideaObj?.optString("personality", ideaObj.optString("trait", prevClassic?.personalityTrait ?: seedClassic?.personalityTrait.orEmpty()))?.trim().orEmpty()
+                val subject = ideaObj?.optString("subject", prevClassic?.subjectCharacter ?: seedClassic?.subjectCharacter.orEmpty())?.trim().orEmpty()
+                val scene = ideaObj?.optString("scene", ideaObj.optString("action", prevClassic?.actionSituationScene ?: seedClassic?.actionSituationScene.orEmpty()))?.trim().orEmpty()
+                val environment = ideaObj?.optString("environment", prevClassic?.environment ?: seedClassic?.environment.orEmpty())?.trim().orEmpty()
+                val atmosphere = ideaObj?.optString("atmosphere", prevClassic?.atmosphereWeather ?: seedClassic?.atmosphereWeather.orEmpty())?.trim().orEmpty()
+                val style = ideaObj?.optString("style", prevClassic?.artStyle ?: seedClassic?.artStyle.orEmpty())?.trim().orEmpty()
+                val challenge = ideaObj?.optString("challenge", prevClassic?.creativeChallenge ?: seedClassic?.creativeChallenge.orEmpty())?.trim().orEmpty()
+                val storyHook = ideaObj?.optString("storyHook", prevClassic?.storyHook ?: seedClassic?.storyHook.orEmpty())?.trim().orEmpty()
+
+                if (personality.isNotBlank() || subject.isNotBlank() || scene.isNotBlank() || environment.isNotBlank() || style.isNotBlank()) {
+                    ClassicSparkIdea(
+                        difficulty = difficulty,
+                        personalityTrait = personality,
+                        subjectCharacter = subject,
+                        actionSituationScene = scene,
+                        environment = environment,
+                        atmosphereWeather = atmosphere,
+                        artStyle = style,
+                        creativeChallenge = challenge,
+                        storyHook = storyHook
+                    )
+                } else {
+                    prevClassic
+                }
+            }
+
+            val detectedMode = structuredIdea?.promptType ?: if (isGap) PromptType.CREATIVE_GAP else PromptType.CLASSIC_SPARK
 
             GeminiResult.Success(
                 replyText = reply,
                 quickPills = quickPillsList,
                 idea = structuredIdea,
-                actionType = actionType
+                actionType = actionType,
+                detectedPromptType = detectedMode
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse Gemini output: $rawJson", e)
-            // Fallback: Return raw text as reply with default pills
             val fallbackText = cleanJsonFence(rawJson).take(300)
+            val defaultPills = when (promptType) {
+                PromptType.CLASSIC_SPARK -> listOf("Make atmosphere darker", "Change action / scene", "Try another art style", "Increase difficulty")
+                PromptType.CREATIVE_GAP -> listOf("Suggest twists for the blank", "Make it harder", "Suggest art style", "Give variations")
+            }
             GeminiResult.Success(
                 replyText = fallbackText,
-                quickPills = listOf("Make it cute", "Add mystery", "Change setting", "Surprise me"),
+                quickPills = defaultPills,
                 idea = previousIdea,
-                actionType = "CONVERSE"
+                actionType = "CONVERSE",
+                detectedPromptType = promptType
             )
         }
     }

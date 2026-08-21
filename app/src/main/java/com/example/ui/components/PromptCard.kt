@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -66,7 +67,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.generator.PromptData
 import com.example.model.ArtPrompt
+import com.example.model.ClassicSpark
+import com.example.model.CreativeGap
+import com.example.model.DiscoverPrompt
 import com.example.model.PromptLockState
+import com.example.model.customCategories
+import com.example.model.getCategoryValue
 import com.example.ui.theme.CleanBorder
 import com.example.ui.theme.CoralRed
 import com.example.ui.theme.IrisPurple
@@ -105,7 +111,7 @@ fun PromptCard(
                     .fillMaxWidth()
                     .padding(horizontal = 22.dp, vertical = 22.dp)
             ) {
-                // Top Row: Section Tag & Status Indicators
+                // Top Row: Section Tag, Status Badges & Action Buttons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -113,34 +119,40 @@ fun PromptCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (prompt.isCreativeGap) "CREATIVE GAP INSPIRATION" else "INSPIRATION BOARD",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.6.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
+                    // Left area: Title & Status Badges (flexibly measured so actions on the right are never pushed out)
                     Row(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        Text(
+                            text = if (prompt.isCreativeGap) "CREATIVE GAP" else "INSPIRATION BOARD",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.4.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
                         if (prompt.customCategories.isNotEmpty()) {
                             Surface(
                                 color = MintTeal.copy(alpha = 0.15f),
                                 shape = CircleShape
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Edit,
                                         contentDescription = "Customized",
                                         tint = MintTeal,
-                                        modifier = Modifier.size(11.dp)
+                                        modifier = Modifier.size(10.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
@@ -149,7 +161,8 @@ fun PromptCard(
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
                                         ),
-                                        color = MintTeal
+                                        color = MintTeal,
+                                        maxLines = 1
                                     )
                                 }
                             }
@@ -161,14 +174,14 @@ fun PromptCard(
                                 shape = CircleShape
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Lock,
                                         contentDescription = "Locks active",
                                         tint = CoralRed,
-                                        modifier = Modifier.size(11.dp)
+                                        modifier = Modifier.size(10.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
@@ -177,39 +190,46 @@ fun PromptCard(
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
                                         ),
-                                        color = CoralRed
+                                        color = CoralRed,
+                                        maxLines = 1
                                     )
                                 }
                             }
                         }
+                    }
 
+                    // Right area: Action Buttons (Copy & Share) - always guaranteed to be visible and inside the card
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
                         IconButton(
                             onClick = {
                                 clipboardManager.setText(AnnotatedString(prompt.toShareText()))
                             },
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(32.dp)
                                 .testTag("copy_prompt_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.ContentCopy,
                                 contentDescription = "Copy prompt",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
 
                         IconButton(
                             onClick = onShare,
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(32.dp)
                                 .testTag("share_prompt_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Share,
                                 contentDescription = "Share prompt",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
@@ -218,18 +238,22 @@ fun PromptCard(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Mode: Creative Gap vs Structured Inspiration Board
-                if (prompt.isCreativeGap && !prompt.gapTemplate.isNullOrBlank()) {
-                    CreativeGapContent(
-                        template = prompt.gapTemplate,
-                        showInspiration = showGapInspiration,
-                        onToggleInspiration = { showGapInspiration = !showGapInspiration }
-                    )
-                } else {
-                    StructuredInspirationBoard(
-                        prompt = prompt,
-                        showFullNarrative = showFullNarrative,
-                        onToggleNarrative = { showFullNarrative = !showFullNarrative }
-                    )
+                when (prompt) {
+                    is CreativeGap -> {
+                        CreativeGapContent(
+                            template = prompt.gapSentence,
+                            ideaStarters = prompt.displayGapSuggestions,
+                            showInspiration = showGapInspiration,
+                            onToggleInspiration = { showGapInspiration = !showGapInspiration }
+                        )
+                    }
+                    is ClassicSpark -> {
+                        StructuredInspirationBoard(
+                            prompt = prompt,
+                            showFullNarrative = showFullNarrative,
+                            onToggleNarrative = { showFullNarrative = !showFullNarrative }
+                        )
+                    }
                 }
             }
         }
@@ -558,6 +582,7 @@ private fun SectionBlock(
 @Composable
 private fun CreativeGapContent(
     template: String,
+    ideaStarters: List<String>,
     showInspiration: Boolean,
     onToggleInspiration: () -> Unit
 ) {
@@ -657,7 +682,7 @@ private fun CreativeGapContent(
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                val suggestions = remember { PromptData.gapInspirationIdeas.shuffled().take(3) }
+                val suggestions = if (ideaStarters.isNotEmpty()) ideaStarters.take(3) else remember { PromptData.gapInspirationIdeas.shuffled().take(3) }
                 suggestions.forEach { idea ->
                     Text(
                         text = "• $idea",

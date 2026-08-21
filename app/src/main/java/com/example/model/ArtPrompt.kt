@@ -1,133 +1,72 @@
 package com.example.model
 
-import com.example.generator.PromptSentenceBuilder
+/**
+ * Type alias connecting legacy ArtPrompt to the sealed DiscoverPrompt interface.
+ */
+typealias ArtPrompt = DiscoverPrompt
 
-data class ArtPrompt(
-    val id: Long = 0,
-    val trait: String = "",
-    val subject: String = "",
-    val action: String = "",
-    val environment: String = "",
-    val atmosphere: String = "",
-    val style: String = "",
-    val challenge: String = "",
-    val storyHook: String = "",
-    val isCreativeGap: Boolean = false,
-    val gapTemplate: String? = null,
-    val difficulty: Difficulty = Difficulty.MEDIUM,
-    val timestamp: Long = System.currentTimeMillis(),
-    val isFavorite: Boolean = false,
-    val isDailySpark: Boolean = false,
-    val customCategories: Set<PromptCategory> = emptySet()
-) {
-    /**
-     * Structured phrase for the Subject section.
-     * e.g., "An awestruck, inquisitive underwater explorer"
-     */
-    val subjectPhrase: String
-        get() = PromptSentenceBuilder.buildSubjectPhrase(trait, subject, capitalize = true)
+/**
+ * Factory helper function for creating DiscoverPrompt instances.
+ */
+fun ArtPrompt(
+    id: Long = 0,
+    trait: String = "",
+    subject: String = "",
+    action: String = "",
+    environment: String = "",
+    atmosphere: String = "",
+    style: String = "",
+    challenge: String = "",
+    storyHook: String = "",
+    isCreativeGap: Boolean = false,
+    gapTemplate: String? = null,
+    gapIdeaStarters: List<String> = emptyList(),
+    blankPosition: String = "",
+    difficulty: Difficulty = Difficulty.MEDIUM,
+    timestamp: Long = System.currentTimeMillis(),
+    isFavorite: Boolean = false,
+    isDailySpark: Boolean = false,
+    customCategories: Set<PromptCategory> = emptySet(),
+    board: InspirationBoard? = null
+): DiscoverPrompt {
+    return if (isCreativeGap) {
+        val sentence = gapTemplate ?: board?.gapSentence.orEmpty()
+        val suggestions = if (gapIdeaStarters.isNotEmpty()) gapIdeaStarters else board?.displaySuggestedFillIns ?: emptyList()
+        CreativeGap(
+            id = id,
+            difficulty = difficulty,
+            gapSentence = sentence,
+            gapSuggestions = suggestions,
+            style = style.ifBlank { board?.style.orEmpty() },
+            challenge = challenge.ifBlank { board?.challenge.orEmpty() },
+            timestamp = timestamp,
+            isFavorite = isFavorite,
+            isDailySpark = isDailySpark
+        )
+    } else {
+        val actualTrait = trait.ifBlank { board?.personality.orEmpty() }
+        val actualSubject = subject.ifBlank { board?.subject.orEmpty() }
+        val actualAction = action.ifBlank { board?.scene.orEmpty() }
+        val actualEnv = environment.ifBlank { board?.environment.orEmpty() }
+        val actualAtm = atmosphere.ifBlank { board?.atmosphere.orEmpty() }
+        val actualStyle = style.ifBlank { board?.style.orEmpty() }
+        val actualChallenge = challenge.ifBlank { board?.challenge.orEmpty() }
 
-    /**
-     * Structured phrase for the Scene section.
-     * e.g., "Discovering ancient scrolls inside a sunken library"
-     */
-    val scenePhrase: String
-        get() = PromptSentenceBuilder.buildScenePhrase(action, environment)
-
-    /**
-     * Structured phrase for the Atmosphere section.
-     * e.g., "Golden sunlight filtering through deep blue water"
-     */
-    val atmospherePhrase: String
-        get() = PromptSentenceBuilder.buildAtmospherePhrase(atmosphere)
-
-    /**
-     * Structured phrase for the Style section.
-     * e.g., "Chiaroscuro Digital Painting"
-     */
-    val stylePhrase: String
-        get() = PromptSentenceBuilder.buildStylePhrase(style)
-
-    /**
-     * Structured phrase for the Challenge section.
-     */
-    val challengePhrase: String
-        get() = challenge.trim()
-
-    /**
-     * Computed story hook if not provided explicitly.
-     */
-    val displayStoryHook: String
-        get() = if (storyHook.isNotBlank()) storyHook else PromptSentenceBuilder.generateStoryHook(subject, action, environment, id)
-
-    /**
-     * Builds the main narrative text using intelligent grammar templates.
-     */
-    val narrativeText: String
-        get() {
-            if (isCreativeGap && !gapTemplate.isNullOrBlank()) {
-                return gapTemplate
-            }
-            return PromptSentenceBuilder.buildFullNarrative(
-                trait = trait,
-                subject = subject,
-                action = action,
-                environment = environment,
-                atmosphere = atmosphere,
-                style = style
-            )
-        }
-
-    /**
-     * Formats the structured prompt text for native sharing.
-     */
-    fun toShareText(): String {
-        return buildString {
-            append("✨ ARTSPARK INSPIRATION ✨\n\n")
-            if (isDailySpark) {
-                append("🌟 Daily Spark of the Day\n\n")
-            }
-
-            append("SUBJECT:\n$subjectPhrase\n\n")
-
-            if (scenePhrase.isNotBlank()) {
-                append("SCENE:\n$scenePhrase\n\n")
-            }
-
-            if (atmospherePhrase.isNotBlank()) {
-                append("ATMOSPHERE:\n$atmospherePhrase\n\n")
-            }
-
-            if (stylePhrase.isNotBlank()) {
-                append("STYLE:\n$stylePhrase\n\n")
-            }
-
-            if (challengePhrase.isNotBlank()) {
-                append("CHALLENGE:\n$challengePhrase\n\n")
-            }
-
-            if (displayStoryHook.isNotBlank()) {
-                append("STORY HOOK:\n$displayStoryHook\n\n")
-            }
-
-            append("Full Prompt:\n\"$narrativeText\"\n\n")
-            append("Break the block. Make something with ArtSpark!")
-        }
-    }
-
-    /**
-     * Retrieves the value of a specific category from this prompt.
-     */
-    fun getCategoryValue(category: PromptCategory): String {
-        return when (category) {
-            PromptCategory.TRAIT -> trait
-            PromptCategory.SUBJECT -> subject
-            PromptCategory.ACTION -> action
-            PromptCategory.ENVIRONMENT -> environment
-            PromptCategory.ATMOSPHERE -> atmosphere
-            PromptCategory.STYLE -> style
-            PromptCategory.CHALLENGE -> challenge
-        }
+        ClassicSpark(
+            id = id,
+            difficulty = difficulty,
+            personalityTrait = actualTrait,
+            subjectCharacter = actualSubject,
+            actionSituationScene = actualAction,
+            environment = actualEnv,
+            atmosphereWeather = actualAtm,
+            artStyle = actualStyle,
+            creativeChallenge = actualChallenge,
+            storyHook = storyHook,
+            timestamp = timestamp,
+            isFavorite = isFavorite,
+            isDailySpark = isDailySpark,
+            customCategories = customCategories
+        )
     }
 }
-
