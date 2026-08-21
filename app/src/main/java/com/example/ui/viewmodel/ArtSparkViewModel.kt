@@ -3,8 +3,8 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.api.GeminiApiClient
-import com.example.data.api.GeminiResult
+import com.example.data.api.BrainstormApiClient
+import com.example.data.api.BrainstormResult
 import com.example.data.local.ArtSparkDatabase
 import com.example.data.local.PromptRepository
 import com.example.data.local.UserPreferences
@@ -37,7 +37,7 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     private val repository: PromptRepository
     private val prefsRepository: UserPreferencesRepository = UserPreferencesRepository(application)
-    private val geminiClient: GeminiApiClient = GeminiApiClient(application)
+    private val brainstormClient: BrainstormApiClient = BrainstormApiClient(application)
 
     val preferences: StateFlow<UserPreferences> = prefsRepository.preferences
 
@@ -466,7 +466,7 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     private fun executeBrainstormRequest(messages: List<BrainstormMessage>) {
         viewModelScope.launch {
             val currentState = _brainstormState.value
-            val result = geminiClient.brainstorm(
+            val result = brainstormClient.brainstorm(
                 messages = messages,
                 currentIdea = currentState.currentIdea,
                 seedPrompt = currentState.activeSeedPrompt,
@@ -474,7 +474,7 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
             )
 
             when (result) {
-                is GeminiResult.Success -> {
+                is BrainstormResult.Success -> {
                     val aiMessage = BrainstormMessage(
                         sender = MessageSender.AI,
                         text = result.replyText,
@@ -491,12 +491,12 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
                         isApiKeyMissing = false
                     )
                 }
-                is GeminiResult.Error -> {
+                is BrainstormResult.Error -> {
                     _brainstormState.value = _brainstormState.value.copy(
                         isLoading = false,
                         errorMessage = result.message,
                         isOffline = result.isOffline,
-                        isApiKeyMissing = result.isApiKeyMissing
+                        isApiKeyMissing = false
                     )
                 }
             }

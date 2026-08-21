@@ -182,14 +182,10 @@ fun BrainstormScreen(
                         item {
                             OfflineCard(onNavigateToDiscover = onNavigateToDiscover)
                         }
-                    } else if (brainstormState.isApiKeyMissing) {
-                        item {
-                            ApiKeyMissingCard()
-                        }
                     } else if (brainstormState.errorMessage != null) {
                         item {
                             ErrorRetryCard(
-                                message = brainstormState.errorMessage ?: "Something went wrong",
+                                message = brainstormState.errorMessage ?: "Brainstorm AI is temporarily unavailable.",
                                 onRetry = { viewModel.retryLastBrainstormMessage() }
                             )
                         }
@@ -998,7 +994,7 @@ private fun OfflineCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Brainstorm AI needs an internet connection, but your ArtSpark randomizer still works.",
+                text = "Unable to contact Brainstorm AI. Please check your internet connection.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -1017,43 +1013,6 @@ private fun OfflineCard(
                     fontWeight = FontWeight.Bold
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ApiKeyMissingCard() {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = IrisPurple.copy(alpha = 0.08f)),
-        border = BorderStroke(1.dp, IrisPurple.copy(alpha = 0.3f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Key,
-                contentDescription = null,
-                tint = IrisPurple,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "API Key Configuration",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "To enable AI Brainstorming, configure GEMINI_API_KEY in the Secrets panel in AI Studio.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
         }
     }
 }
@@ -1083,13 +1042,13 @@ private fun ErrorRetryCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Something went wrong",
+                text = "Brainstorm AI Unavailable",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Let's try that again. $message",
+                text = message,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
