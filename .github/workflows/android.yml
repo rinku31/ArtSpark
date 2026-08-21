@@ -25,10 +25,11 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
       - name: Prepare environment and secrets
         run: |
@@ -53,11 +54,9 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Ensure Gradle wrapper script exists
+      - name: Generate Gradle Wrapper (9.3.1)
         run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper
-          fi
+          gradle wrapper --gradle-version 9.3.1 --distribution-type bin
           chmod +x gradlew
 
       - name: Run Unit & Robolectric Tests
