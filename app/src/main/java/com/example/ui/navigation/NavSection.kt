@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class NavSection(
@@ -12,6 +13,7 @@ enum class NavSection(
     val testTag: String
 ) {
     DISCOVER("Discover", Icons.Rounded.AutoAwesome, "tab_discover"),
+    BRAINSTORM("Brainstorm", Icons.Rounded.Lightbulb, "tab_brainstorm"),
     FAVORITES("Favorites", Icons.Rounded.Favorite, "tab_favorites"),
     HISTORY("History", Icons.Rounded.History, "tab_history")
 }

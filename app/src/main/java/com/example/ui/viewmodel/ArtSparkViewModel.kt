@@ -3,16 +3,23 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.api.GeminiApiClient
+import com.example.data.api.GeminiResult
 import com.example.data.local.ArtSparkDatabase
 import com.example.data.local.PromptRepository
 import com.example.data.local.UserPreferences
 import com.example.data.local.UserPreferencesRepository
 import com.example.generator.PromptGenerator
 import com.example.model.ArtPrompt
+import com.example.model.ArtSparkIdea
+import com.example.model.BrainstormMessage
+import com.example.model.BrainstormUiState
 import com.example.model.CategorySelectionMode
 import com.example.model.Difficulty
+import com.example.model.MessageSender
 import com.example.model.PromptCategory
 import com.example.model.PromptLockState
+import com.example.model.QuickAiAction
 import com.example.model.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +32,7 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     private val repository: PromptRepository
     private val prefsRepository: UserPreferencesRepository = UserPreferencesRepository(application)
+    private val geminiClient: GeminiApiClient = GeminiApiClient(application)
 
     val preferences: StateFlow<UserPreferences> = prefsRepository.preferences
 
@@ -54,6 +62,10 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
 
     private val _rerollTrigger = MutableStateFlow(0)
     val rerollTrigger: StateFlow<Int> = _rerollTrigger.asStateFlow()
+
+    // Brainstorming State
+    private val _brainstormState = MutableStateFlow(BrainstormUiState())
+    val brainstormState: StateFlow<BrainstormUiState> = _brainstormState.asStateFlow()
 
     val history: StateFlow<List<ArtPrompt>>
     val favorites: StateFlow<List<ArtPrompt>>
@@ -245,4 +257,185 @@ class ArtSparkViewModel(application: Application) : AndroidViewModel(application
     fun setHapticsEnabled(enabled: Boolean) {
         prefsRepository.setHapticsEnabled(enabled)
     }
+
+    // ==========================================
+    // Brainstorm Session & AI Actions
+    // ==========================================
+
+    fun startNewBrainstorm(seedPrompt: ArtPrompt? = null) {
+        if (seedPrompt != null) {
+            val initialAiMsg = BrainstormMessage(
+                sender = MessageSender.AI,
+                text = "Let's work on your current idea:\n\n**${seedPrompt.narrativeText}**\n\nWhat would you like to change or explore?",
+                quickPills = listOf("Expand details", "Simplify for sketch", "Twist setting", "Change style", "Make variations"),
+                idea = ArtSparkIdea(
+                    subject = seedPrompt.subject,
+                    trait = seedPrompt.trait,
+                    action = seedPrompt.action,
+                    environment = seedPrompt.environment,
+                    atmosphere = seedPrompt.atmosphere,
+                    style = seedPrompt.style,
+                    challenge = seedPrompt.challenge
+                ),
+                isContextSummary = true
+            )
+            _brainstormState.value = BrainstormUiState(
+                messages = listOf(initialAiMsg),
+                currentIdea = initialAiMsg.idea,
+                activeSeedPrompt = seedPrompt
+            )
+        } else {
+            _brainstormState.value = BrainstormUiState(
+                messages = emptyList(),
+                currentIdea = null,
+                activeSeedPrompt = null
+            )
+        }
+    }
+
+    fun startBrainstormWithPrompt(prompt: ArtPrompt, onNavigateToBrainstorm: () -> Unit) {
+        startNewBrainstorm(seedPrompt = prompt)
+        onNavigateToBrainstorm()
+    }
+
+    fun sendBrainstormMessage(userText: String) {
+        val trimmed = userText.trim()
+        if (trimmed.isBlank() || _brainstormState.value.isLoading) return
+
+        val userMessage = BrainstormMessage(
+            sender = MessageSender.USER,
+            text = trimmed
+        )
+
+        val updatedMessages = _brainstormState.value.messages + userMessage
+        _brainstormState.value = _brainstormState.value.copy(
+            messages = updatedMessages,
+            isLoading = true,
+            errorMessage = null,
+            isOffline = false,
+            isApiKeyMissing = false
+        )
+
+        executeBrainstormRequest(updatedMessages)
+    }
+
+    fun sendQuickPill(pillText: String) {
+        sendBrainstormMessage(pillText)
+    }
+
+    fun sendQuickAiAction(action: QuickAiAction) {
+        val currentIdea = _brainstormState.value.currentIdea
+        val userPrompt = if (currentIdea != null && currentIdea.isComplete) {
+            "${action.title}: ${action.promptInstruction}"
+        } else if (_brainstormState.value.activeSeedPrompt != null) {
+            "${action.title}: ${action.promptInstruction}"
+        } else {
+            "${action.title}: Give me an inspiring concept with this focus."
+        }
+        sendBrainstormMessage(userPrompt)
+    }
+
+    fun retryLastBrainstormMessage() {
+        val currentMessages = _brainstormState.value.messages.filter { !it.isError }
+        if (currentMessages.isEmpty()) return
+
+        _brainstormState.value = _brainstormState.value.copy(
+            messages = currentMessages,
+            isLoading = true,
+            errorMessage = null,
+            isOffline = false,
+            isApiKeyMissing = false
+        )
+
+        executeBrainstormRequest(currentMessages)
+    }
+
+    private fun executeBrainstormRequest(messages: List<BrainstormMessage>) {
+        viewModelScope.launch {
+            val currentState = _brainstormState.value
+            val result = geminiClient.brainstorm(
+                messages = messages,
+                currentIdea = currentState.currentIdea,
+                seedPrompt = currentState.activeSeedPrompt
+            )
+
+            when (result) {
+                is GeminiResult.Success -> {
+                    val aiMessage = BrainstormMessage(
+                        sender = MessageSender.AI,
+                        text = result.replyText,
+                        quickPills = result.quickPills,
+                        idea = result.idea
+                    )
+                    _brainstormState.value = _brainstormState.value.copy(
+                        messages = _brainstormState.value.messages + aiMessage,
+                        isLoading = false,
+                        currentIdea = result.idea ?: _brainstormState.value.currentIdea,
+                        errorMessage = null,
+                        isOffline = false,
+                        isApiKeyMissing = false
+                    )
+                }
+                is GeminiResult.Error -> {
+                    _brainstormState.value = _brainstormState.value.copy(
+                        isLoading = false,
+                        errorMessage = result.message,
+                        isOffline = result.isOffline,
+                        isApiKeyMissing = result.isApiKeyMissing
+                    )
+                }
+            }
+        }
+    }
+
+    fun applyBrainstormIdeaToWorkspace(idea: ArtSparkIdea, onNavigateToDiscover: () -> Unit) {
+        var newLockState = PromptLockState()
+        val customCats = mutableSetOf<PromptCategory>()
+
+        fun applyCategory(category: PromptCategory, rawValue: String) {
+            val value = rawValue.trim()
+            if (value.isNotBlank() && !value.equals("random", ignoreCase = true) && !value.equals("none", ignoreCase = true)) {
+                newLockState = newLockState.setCustomValue(category, value)
+                customCats.add(category)
+            } else {
+                newLockState = newLockState.setCategoryMode(category, CategorySelectionMode.RANDOM)
+            }
+        }
+
+        applyCategory(PromptCategory.SUBJECT, idea.subject)
+        applyCategory(PromptCategory.TRAIT, idea.trait)
+        applyCategory(PromptCategory.ACTION, idea.action)
+        applyCategory(PromptCategory.ENVIRONMENT, idea.environment)
+        applyCategory(PromptCategory.ATMOSPHERE, idea.atmosphere)
+        applyCategory(PromptCategory.STYLE, idea.style)
+        applyCategory(PromptCategory.CHALLENGE, idea.challenge)
+
+        _lockState.value = newLockState
+
+        val updatedPrompt = ArtPrompt(
+            id = System.currentTimeMillis(),
+            trait = if (newLockState.isLocked(PromptCategory.TRAIT)) newLockState.getCustomValue(PromptCategory.TRAIT).ifBlank { newLockState.getSelectedValue(PromptCategory.TRAIT) } else "",
+            subject = if (newLockState.isLocked(PromptCategory.SUBJECT)) newLockState.getCustomValue(PromptCategory.SUBJECT).ifBlank { newLockState.getSelectedValue(PromptCategory.SUBJECT) } else "Creature",
+            action = if (newLockState.isLocked(PromptCategory.ACTION)) newLockState.getCustomValue(PromptCategory.ACTION).ifBlank { newLockState.getSelectedValue(PromptCategory.ACTION) } else "",
+            environment = if (newLockState.isLocked(PromptCategory.ENVIRONMENT)) newLockState.getCustomValue(PromptCategory.ENVIRONMENT).ifBlank { newLockState.getSelectedValue(PromptCategory.ENVIRONMENT) } else "",
+            atmosphere = if (newLockState.isLocked(PromptCategory.ATMOSPHERE)) newLockState.getCustomValue(PromptCategory.ATMOSPHERE).ifBlank { newLockState.getSelectedValue(PromptCategory.ATMOSPHERE) } else "",
+            style = if (newLockState.isLocked(PromptCategory.STYLE)) newLockState.getCustomValue(PromptCategory.STYLE).ifBlank { newLockState.getSelectedValue(PromptCategory.STYLE) } else "",
+            challenge = if (newLockState.isLocked(PromptCategory.CHALLENGE)) newLockState.getCustomValue(PromptCategory.CHALLENGE).ifBlank { newLockState.getSelectedValue(PromptCategory.CHALLENGE) } else "",
+            isCreativeGap = false,
+            difficulty = _selectedDifficulty.value,
+            timestamp = System.currentTimeMillis(),
+            customCategories = customCats
+        )
+
+        _currentPrompt.value = updatedPrompt
+        _rerollTrigger.value += 1
+
+        viewModelScope.launch {
+            val savedId = repository.savePrompt(updatedPrompt)
+            _currentPrompt.value = updatedPrompt.copy(id = savedId)
+        }
+
+        onNavigateToDiscover()
+    }
 }
+

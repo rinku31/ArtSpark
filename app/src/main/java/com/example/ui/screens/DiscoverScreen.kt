@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.ArtPrompt
 import com.example.model.Difficulty
 import com.example.ui.components.DailySparkCard
+import androidx.compose.material.icons.rounded.Lightbulb
 import com.example.ui.components.LockControlsCard
 import com.example.ui.components.PromptCard
 import com.example.ui.components.SparkHeader
@@ -71,6 +72,7 @@ import com.example.ui.theme.CleanInkBlack
 import com.example.ui.theme.CleanMutedText
 import com.example.ui.theme.CleanPillBorder
 import com.example.ui.theme.CoralRed
+import com.example.ui.theme.IrisPurple
 import com.example.ui.theme.MintTeal
 import com.example.ui.theme.SparkYellow
 import com.example.ui.viewmodel.ArtSparkViewModel
@@ -79,6 +81,7 @@ import com.example.ui.viewmodel.ArtSparkViewModel
 fun DiscoverScreen(
     viewModel: ArtSparkViewModel,
     onOpenSettings: () -> Unit,
+    onNavigateToBrainstorm: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -397,8 +400,47 @@ fun DiscoverScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Brainstorm This Action Button
+                Surface(
+                    onClick = {
+                        triggerHaptic()
+                        viewModel.startBrainstormWithPrompt(currentPrompt, onNavigateToBrainstorm)
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("brainstorm_this_button")
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lightbulb,
+                            contentDescription = null,
+                            tint = IrisPurple,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "✨ Brainstorm This Idea with AI",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text(
-                    text = "Feeling stuck? Roll again.",
+                    text = "Feeling stuck? Roll again or brainstorm with AI.",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 11.sp,
                         fontStyle = FontStyle.Italic,

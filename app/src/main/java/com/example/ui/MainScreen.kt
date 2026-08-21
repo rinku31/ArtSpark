@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.navigation.NavSection
+import com.example.ui.screens.BrainstormScreen
 import com.example.ui.screens.DiscoverScreen
 import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.HistoryScreen
@@ -118,7 +119,14 @@ fun MainScreen(
                     NavSection.DISCOVER -> {
                         DiscoverScreen(
                             viewModel = viewModel,
-                            onOpenSettings = { isSettingsOpen = true }
+                            onOpenSettings = { isSettingsOpen = true },
+                            onNavigateToBrainstorm = { selectedSection = NavSection.BRAINSTORM }
+                        )
+                    }
+                    NavSection.BRAINSTORM -> {
+                        BrainstormScreen(
+                            viewModel = viewModel,
+                            onNavigateToDiscover = { selectedSection = NavSection.DISCOVER }
                         )
                     }
                     NavSection.FAVORITES -> {
