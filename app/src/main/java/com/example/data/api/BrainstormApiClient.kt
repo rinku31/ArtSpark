@@ -3,7 +3,6 @@ package com.example.data.api
 import android.content.Context
 import android.util.Log
 import com.example.BuildConfig
-import com.example.config.AppConfig
 import com.example.generator.PromptData
 import com.example.generator.PromptSentenceBuilder
 import com.example.model.BrainstormIdea
@@ -24,8 +23,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 sealed class BrainstormResult {
     data class Success(
@@ -48,9 +47,8 @@ typealias GeminiApiClient = BrainstormApiClient
 
 /**
  * Intelligent Brainstorm AI Client for ArtSpark.
- * - Directly calls Gemini 2.5 Flash via REST when a valid API key is present.
- * - Seamlessly falls back to the dynamic ArtSpark Creative Synthesis Engine when offline or if key is unavailable,
- *   guaranteeing artists are NEVER stuck with a dead-end error card.
+ * Uses Google Gemini API via BuildConfig.GEMINI_API_KEY.
+ * Provides rich, structured brainstorming assistance for Classic Spark and Creative Gap.
  */
 class BrainstormApiClient(private val context: Context) {
 
@@ -61,26 +59,15 @@ class BrainstormApiClient(private val context: Context) {
     }
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private fun getApiKey(): String {
-        // 1. Direct AppConfig compile-time constant for GitHub/local/export builds
-        val directKey = AppConfig.GEMINI_API_KEY.trim()
-        if (directKey.isNotBlank() &&
-            directKey != "PASTE_MY_API_KEY_HERE" &&
-            !directKey.startsWith("YOUR_") &&
-            !directKey.startsWith("MY_")
-        ) {
-            return directKey
-        }
-
-        // 2. Fallback to BuildConfig if configured
         return try {
             val key = BuildConfig.GEMINI_API_KEY.trim()
-            if (key.isNotBlank() && key != "MY_GEMINI_API_KEY" && !key.startsWith("YOUR_")) {
+            if (key.isNotBlank() && key != "MY_GEMINI_API_KEY" && !key.startsWith("YOUR_") && !key.startsWith("PASTE_")) {
                 key
             } else {
                 ""
@@ -91,7 +78,7 @@ class BrainstormApiClient(private val context: Context) {
     }
 
     /**
-     * Executes brainstorming session with Gemini API or dynamic ArtSpark Engine.
+     * Executes brainstorming session with Gemini API.
      */
     suspend fun brainstorm(
         messages: List<BrainstormMessage>,
@@ -100,36 +87,36 @@ class BrainstormApiClient(private val context: Context) {
         promptType: PromptType
     ): BrainstormResult = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
-        val latestUserMessage = messages.lastOrNull { it.sender == MessageSender.USER }?.text.orEmpty()
-
-        if (apiKey.isNotBlank()) {
-            try {
-                val geminiResult = callGeminiRestApi(
-                    apiKey = apiKey,
-                    messages = messages,
-                    currentIdea = currentIdea,
-                    seedPrompt = seedPrompt,
-                    promptType = promptType
-                )
-                if (geminiResult != null) {
-                    return@withContext geminiResult
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Gemini REST call encountered issue: ${e.message}. Falling back to Creative Engine.", e)
-            }
+        if (apiKey.isBlank()) {
+            return@withContext BrainstormResult.Error(
+                message = "Gemini API key is not configured. Please set GEMINI_API_KEY in the AI Studio Secrets panel."
+            )
         }
 
-        // Generate response via on-device Creative Engine to ensure 100% reliability
-        generateLocalCreativeResponse(
-            userMessage = latestUserMessage,
-            currentIdea = currentIdea,
-            seedPrompt = seedPrompt,
-            promptType = promptType
-        )
+        try {
+            callGeminiRestApi(
+                apiKey = apiKey,
+                messages = messages,
+                currentIdea = currentIdea,
+                seedPrompt = seedPrompt,
+                promptType = promptType
+            )
+        } catch (e: IOException) {
+            Log.e(TAG, "Network error during Gemini call", e)
+            BrainstormResult.Error(
+                message = "Network error: Unable to connect to Gemini API. Please check your internet connection.",
+                isOffline = true
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error during Gemini call", e)
+            BrainstormResult.Error(
+                message = "Brainstorm error: ${e.message ?: "An unexpected error occurred."}"
+            )
+        }
     }
 
     /**
-     * Calls Gemini 2.5 Flash REST API endpoint directly with structured JSON output schema.
+     * Calls Gemini REST API endpoint directly with structured JSON output schema.
      */
     private fun callGeminiRestApi(
         apiKey: String,
@@ -137,7 +124,7 @@ class BrainstormApiClient(private val context: Context) {
         currentIdea: BrainstormIdea?,
         seedPrompt: DiscoverPrompt?,
         promptType: PromptType
-    ): BrainstormResult? {
+    ): BrainstormResult {
         val url = "$GEMINI_BASE_URL/$GEMINI_MODEL:generateContent?key=$apiKey"
 
         val systemPrompt = buildSystemPrompt(promptType, currentIdea, seedPrompt)
@@ -146,11 +133,10 @@ class BrainstormApiClient(private val context: Context) {
         val requestPayload = JSONObject().apply {
             val contentsArray = JSONArray()
 
-            // System instruction + context + prompt
             val contentObj = JSONObject().apply {
                 put("role", "user")
                 val partsArray = JSONArray().apply {
-                    put(JSONObject().put("text", "$systemPrompt\n\nCONVERSATION HISTORY:\n$conversationText"))
+                    put(JSONObject().put("text", "$systemPrompt\n\nCONVERSATION HISTORY:\n$conversationText\n\nRespond with strictly valid JSON matching the requested schema."))
                 }
                 put("parts", partsArray)
             }
@@ -169,18 +155,28 @@ class BrainstormApiClient(private val context: Context) {
             .url(url)
             .post(requestBody)
             .header("Content-Type", "application/json")
-            .header("x-goog-api-key", apiKey)
             .build()
 
         val response = httpClient.newCall(request).execute()
-        val responseBody = response.body?.string() ?: return null
+        val responseBody = response.body?.string()
 
-        if (!response.isSuccessful) {
-            Log.w(TAG, "Gemini API error status ${response.code}: $responseBody")
-            return null
+        if (!response.isSuccessful || responseBody.isNullOrBlank()) {
+            val errorMsg = try {
+                if (!responseBody.isNullOrBlank()) {
+                    val errJson = JSONObject(responseBody)
+                    errJson.optJSONObject("error")?.optString("message") ?: "HTTP status ${response.code}"
+                } else {
+                    "HTTP status ${response.code}"
+                }
+            } catch (e: Exception) {
+                "HTTP status ${response.code}"
+            }
+            Log.w(TAG, "Gemini API error ${response.code}: $responseBody")
+            return BrainstormResult.Error("Gemini API error (${response.code}): $errorMsg")
         }
 
         return parseGeminiResponse(responseBody, promptType, currentIdea, seedPrompt)
+            ?: BrainstormResult.Error("Failed to parse response from Gemini. Please try again.")
     }
 
     private fun buildSystemPrompt(promptType: PromptType, currentIdea: BrainstormIdea?, seedPrompt: DiscoverPrompt?): String {
@@ -198,27 +194,38 @@ class BrainstormApiClient(private val context: Context) {
                 val curCha = classicIdea?.creativeChallenge ?: classicSeed?.creativeChallenge.orEmpty()
 
                 """
-                You are ArtSpark's AI Brainstorm partner for artists.
-                Help the artist explore, refine, or transform their prompt across 7 structured categories:
-                1. personalityTrait
-                2. subjectCharacter
-                3. actionSituationScene
-                4. environment
-                5. atmosphereWeather
-                6. artStyle
-                7. creativeChallenge
-                - storyHook (1 sentence narrative hook)
+                You are ArtSpark's AI Brainstorm partner for artists, specializing in Classic Spark prompts.
+                Classic Spark uses EXACTLY 7 structured categories:
+                1. personalityTrait: A character/subject personality trait (e.g. "Curious", "Eccentric", "Melancholy", "Fearless")
+                2. subjectCharacter: The main character, creature, or focal subject (e.g. "Clockwork Owl", "Cyberpunk Botanist", "Overgrown Golem")
+                3. actionSituationScene: The specific action, situation, or dynamic scene (e.g. "brewing glowing elixirs in floating teacups", "repairing an ancient astrolabe")
+                4. environment: The physical setting or world (e.g. "Sunken Crystal Library", "Overgrown Conservatory", "Bioluminescent Cloud City")
+                5. atmosphereWeather: The lighting, weather, and mood (e.g. "Golden hour glow with floating embers", "Thick midnight fog pierced by lantern light")
+                6. artStyle: The visual art style or medium (e.g. "Lush Storybook Watercolor", "Risograph Screenprint", "Studio Ghibli Aesthetic", "Dynamic Comic Ink")
+                7. creativeChallenge: An artistic constraint or composition challenge (e.g. "Focus on dramatic rim lighting", "Limit palette to 3 warm colors", "Extreme bird's-eye perspective")
+
+                You also maintain:
+                - storyHook: A 1-sentence intriguing narrative question or hook.
                 - difficulty: "EASY" | "MEDIUM" | "HARD"
 
-                Current state:
+                CURRENT PROMPT STATE:
                 - Difficulty: $curDiff
-                - Trait: $curTrait
-                - Subject: $curSubj
-                - Action: $curAct
+                - Personality/Trait: $curTrait
+                - Subject/Character: $curSubj
+                - Action/Situation/Scene: $curAct
                 - Environment: $curEnv
-                - Atmosphere: $curAtm
-                - Style: $curSty
-                - Challenge: $curCha
+                - Atmosphere & Weather: $curAtm
+                - Art Style: $curSty
+                - Creative Challenge: $curCha
+
+                RULES:
+                - Help the artist explore, refine, or transform their prompt across all 7 categories.
+                - When the artist asks to change or twist a category, update it while harmonizing the remaining categories.
+                - Always return all 7 categories in the "idea" object.
+                - If the user asks to change difficulty (e.g., "make it hard", "make it easy", "increase difficulty"), adjust the "difficulty" field ("EASY", "MEDIUM", "HARD") and update the challenge accordingly.
+                - Never treat this prompt as a Creative Gap.
+                - In "reply", provide 2-3 enthusiastic, supportive sentences explaining the direction.
+                - In "quickPills", provide 4 short, relevant follow-up action suggestions (e.g. ["Make atmosphere darker", "Change art style", "Add unexpected twist", "Increase difficulty"]).
 
                 Return strictly JSON matching this structure:
                 {
@@ -242,14 +249,35 @@ class BrainstormApiClient(private val context: Context) {
             PromptType.CREATIVE_GAP -> {
                 val gapIdea = currentIdea as? CreativeGapIdea
                 val gapSeed = seedPrompt as? CreativeGap
+                val curDiff = gapIdea?.difficulty ?: gapSeed?.difficulty ?: Difficulty.MEDIUM
                 val curSentence = gapIdea?.gapSentence ?: gapSeed?.gapSentence.orEmpty()
+                val curSuggestions = (gapIdea?.gapSuggestions ?: gapSeed?.displayGapSuggestions ?: emptyList()).joinToString(", ")
+                val curStyle = gapIdea?.style ?: gapSeed?.style.orEmpty()
+                val curChallenge = gapIdea?.challenge ?: gapSeed?.challenge.orEmpty()
 
                 """
                 You are ArtSpark's AI Brainstorm partner for Creative Gap prompts.
-                Keep the blank `______` inside `gapSentence`.
-                Provide 3-5 creative starter options in `gapSuggestions`.
-                
-                Current sentence: "$curSentence"
+                Creative Gap is a fill-in-the-blank prompt format containing:
+                1. gapSentence: A sentence with a blank `______` (e.g., "An alchemist accidentally summons a tiny ______ while brewing tea.")
+                2. gapSuggestions: A list of 3-5 creative starter options for the blank (e.g., ["living constellation", "pocket-sized vortex", "crystalline familiar"])
+                3. style: Recommended art style
+                4. challenge: Creative challenge or constraint
+                5. difficulty: "EASY" | "MEDIUM" | "HARD"
+
+                CURRENT PROMPT STATE:
+                - Difficulty: $curDiff
+                - Gap Sentence: "$curSentence"
+                - Idea Starters: $curSuggestions
+                - Style: "$curStyle"
+                - Challenge: "$curChallenge"
+
+                RULES:
+                - Creative Gap is a distinct entity. Do NOT invent the 7 Classic Spark categories for it.
+                - Keep the blank `______` inside `gapSentence`.
+                - Provide 3-5 fresh, inspiring fill-in starter suggestions in `gapSuggestions`.
+                - If the user asks to change difficulty (e.g., "make it hard", "easy"), adjust the "difficulty" field ("EASY", "MEDIUM", "HARD").
+                - In "reply", provide 2-3 encouraging, artist-friendly sentences.
+                - In "quickPills", provide 4 short follow-up action suggestions (e.g. ["Suggest twists for the blank", "Change art style", "Make it harder", "Surprise variations"]).
 
                 Return strictly JSON matching this structure:
                 {
@@ -270,7 +298,7 @@ class BrainstormApiClient(private val context: Context) {
     }
 
     private fun buildConversationContext(messages: List<BrainstormMessage>): String {
-        return messages.filter { !it.isError }.takeLast(8).joinToString("\n") { msg ->
+        return messages.filter { !it.isError }.takeLast(10).joinToString("\n") { msg ->
             "${if (msg.sender == MessageSender.USER) "Artist" else "ArtSpark"}: ${msg.text}"
         }
     }
@@ -391,208 +419,5 @@ class BrainstormApiClient(private val context: Context) {
             Log.e(TAG, "Failed parsing Gemini response", e)
             null
         }
-    }
-
-    /**
-     * Local Creative Synthesis Engine.
-     * Evaluates user intent, dynamically mutates categories or creates fresh concepts,
-     * providing an artist-friendly response and fresh interactive pills instantly.
-     */
-    private fun generateLocalCreativeResponse(
-        userMessage: String,
-        currentIdea: BrainstormIdea?,
-        seedPrompt: DiscoverPrompt?,
-        promptType: PromptType
-    ): BrainstormResult {
-        val lower = userMessage.lowercase().trim()
-        val random = Random.Default
-
-        if (promptType == PromptType.CREATIVE_GAP || (currentIdea is CreativeGapIdea)) {
-            return handleLocalCreativeGap(lower, currentIdea as? CreativeGapIdea, seedPrompt as? CreativeGap, random)
-        } else {
-            return handleLocalClassicSpark(lower, currentIdea as? ClassicSparkIdea, seedPrompt as? ClassicSpark, random)
-        }
-    }
-
-    private fun handleLocalClassicSpark(
-        userMessage: String,
-        currentIdea: ClassicSparkIdea?,
-        seedPrompt: ClassicSpark?,
-        random: Random
-    ): BrainstormResult {
-        val prevTrait = currentIdea?.personalityTrait ?: seedPrompt?.personalityTrait.orEmpty()
-        val prevSubj = currentIdea?.subjectCharacter ?: seedPrompt?.subjectCharacter.orEmpty()
-        val prevAct = currentIdea?.actionSituationScene ?: seedPrompt?.actionSituationScene.orEmpty()
-        val prevEnv = currentIdea?.environment ?: seedPrompt?.environment.orEmpty()
-        val prevAtm = currentIdea?.atmosphereWeather ?: seedPrompt?.atmosphereWeather.orEmpty()
-        val prevSty = currentIdea?.artStyle ?: seedPrompt?.artStyle.orEmpty()
-        val prevCha = currentIdea?.creativeChallenge ?: seedPrompt?.creativeChallenge.orEmpty()
-        val prevDiff = currentIdea?.difficulty ?: seedPrompt?.difficulty ?: Difficulty.MEDIUM
-
-        var newTrait = prevTrait.ifBlank { PromptData.traits.random(random) }
-        var newSubj = prevSubj.ifBlank { PromptData.subjects.random(random) }
-        var newAct = prevAct.ifBlank { PromptData.actions.random(random) }
-        var newEnv = prevEnv.ifBlank { PromptData.environments.random(random) }
-        var newAtm = prevAtm.ifBlank { PromptData.atmospheres.random(random) }
-        var newSty = prevSty.ifBlank { PromptData.styles.random(random) }
-        var newCha = prevCha.ifBlank { PromptData.challenges.random(random) }
-        var newDiff = prevDiff
-        var reply = ""
-        var pills = listOf<String>()
-
-        when {
-            userMessage.contains("block") || userMessage.contains("break through") || userMessage.contains("stuck") || userMessage.isEmpty() -> {
-                newTrait = listOf("Curious", "Eccentric", "Enchanted", "Fearless", "Gentle", "Mischievous").random(random)
-                newSubj = listOf("Clockwork Dragon", "Celestial Cartographer", "Little Fox Alchemist", "Cyberpunk Botanist", "Overgrown Golem", "Star-catching Owl").random(random)
-                newAct = listOf("brewing glowing elixirs in floating teacups", "weaving tapestries made of starlight", "repairing a miniature solar system", "cataloging phosphorescent mushrooms", "baking pastries shaped like constellations").random(random)
-                newEnv = listOf("Sunken Crystal Library", "Bioluminescent Cloud City", "Cozy Attic Workshop", "Ancient Mossy Conservatory", "Neon-lit Starlit Rooftop").random(random)
-                newAtm = listOf("Golden hour glow with floating embers", "Soft lantern light in misty drizzle", "Bioluminescent turquoise twilight", "Warm fireplace contrast against stormy dusk").random(random)
-                newSty = listOf("Lush Storybook Watercolor", "Textured Gouache & Ink", "Rich Studio Ghibli Aesthetic", "Vintage Risograph Print", "Luminous Digital Painting").random(random)
-                newCha = listOf("Use a warm analogous palette", "Focus on dramatic rim lighting", "Draw within 20 minutes", "Emphasize expressive silhouette").random(random)
-                reply = "Let's smash that creative block! Here's a high-vibe, story-rich concept with playful textures and glowing lighting to get your pencil moving immediately."
-                pills = listOf("Make atmosphere darker", "Change art style", "Add unexpected twist", "Increase difficulty")
-            }
-            userMessage.contains("hard") || userMessage.contains("difficult") || userMessage.contains("challenge") -> {
-                newDiff = Difficulty.HARD
-                newCha = listOf(
-                    "Limit to 2 complementary colors only (no black/white)",
-                    "Dramatic extreme bird's-eye perspective",
-                    "Single continuous line underlay with speed ink",
-                    "No eraser allowed / 15-minute speed challenge",
-                    "Dual high-contrast light sources (cyan & magenta)"
-                ).random(random)
-                reply = "Difficulty dialed up! Added a high-focus constraint: \"$newCha\". This will stretch your composition and lighting instincts."
-                pills = listOf("Try another challenge", "Change lighting", "Suggest story twist", "Simplify prompt")
-            }
-            userMessage.contains("easy") || userMessage.contains("simple") || userMessage.contains("relax") -> {
-                newDiff = Difficulty.EASY
-                newCha = "Relaxed free sketch with soft shading"
-                newAct = listOf("resting quietly", "enjoying warm tea", "observing the clouds", "reading an old book").random(random)
-                reply = "Dialed it back to a cozy, stress-free sketch. Focus on soft shapes and having fun with the flow."
-                pills = listOf("Add cozy atmosphere", "Try pastel palette", "Change character", "Make it harder")
-            }
-            userMessage.contains("dark") || userMessage.contains("moody") || userMessage.contains("shadow") || userMessage.contains("night") -> {
-                newAtm = listOf("Heavy rain with dramatic neon reflections", "Deep indigo twilight lit by solitary candlelight", "Thunderstorm dusk with electric rim light", "Thick midnight fog pierced by glowing lanterns").random(random)
-                reply = "Atmosphere deepened! Shifting into moody shadows, high value contrast, and cinematic ambient light."
-                pills = listOf("Add glowing element", "Change subject", "Try Cyberpunk Noir", "Increase difficulty")
-            }
-            userMessage.contains("style") || userMessage.contains("medium") || userMessage.contains("technique") -> {
-                newSty = listOf("90s Retro Anime Cel-Shading", "Dynamic Comic Ink & Halftone", "Impressionist Oil Brushstrokes", "Soft Children's Book Gouache", "Ukiyo-e Woodblock Print").random(random)
-                reply = "Swapped the aesthetic to **$newSty**. Think about the unique texture, brushwork, and edge control this medium brings."
-                pills = listOf("Try watercolor style", "Try comic ink style", "Change character", "Suggest color palette")
-            }
-            userMessage.contains("action") || userMessage.contains("scene") || userMessage.contains("doing") -> {
-                newAct = listOf("discovering a hidden portal behind bookshelf", "calibrating an ancient brass astrolabe", "sharing glowing tea with spirit companions", "gliding across rooftops on a glider").random(random)
-                reply = "Updated the scene action to **$newAct** to create dynamic flow and natural movement in your composition."
-                pills = listOf("Make atmosphere darker", "Change environment", "Try another art style", "Add creative challenge")
-            }
-            userMessage.contains("character") || userMessage.contains("creature") || userMessage.contains("subject") -> {
-                newSubj = listOf("Rooftop Gargoyle Sculptor", "Wandering Star Weaver", "Deep-sea Jellyfish Mage", "Mecha Garden Tender", "Nomadic Sand Cat Rider").random(random)
-                reply = "Brought in a new hero: **$newSubj**! Pair their silhouette with distinctive props and expressive body language."
-                pills = listOf("Change personality", "Change environment", "Make atmosphere darker", "Increase difficulty")
-            }
-            else -> {
-                newTrait = listOf("Adventurous", "Mysterious", "Whimsical", "Contemplative", "Playful").random(random)
-                newSubj = PromptData.subjects.random(random)
-                newAct = PromptData.actions.random(random)
-                newEnv = PromptData.environments.random(random)
-                newAtm = PromptData.atmospheres.random(random)
-                newSty = PromptData.styles.random(random)
-                newCha = PromptData.challenges.random(random)
-                reply = "Here's an inspiring new spark tailored to your direction! Notice how the mood and setting work together."
-                pills = listOf("Make atmosphere darker", "Change action / scene", "Try another art style", "Increase difficulty")
-            }
-        }
-
-        val generatedSentence = PromptSentenceBuilder.buildFullPromptSentence(
-            trait = newTrait,
-            subject = newSubj,
-            action = newAct,
-            environment = newEnv,
-            atmosphere = newAtm,
-            style = newSty,
-            challenge = newCha
-        )
-
-        val idea = ClassicSparkIdea(
-            difficulty = newDiff,
-            personalityTrait = newTrait,
-            subjectCharacter = newSubj,
-            actionSituationScene = newAct,
-            environment = newEnv,
-            atmosphereWeather = newAtm,
-            artStyle = newSty,
-            creativeChallenge = newCha,
-            storyHook = "What secret is hidden just outside the frame?",
-            generatedSentence = generatedSentence
-        )
-
-        return BrainstormResult.Success(
-            replyText = reply,
-            quickPills = pills,
-            idea = idea,
-            actionType = "GENERATE_IDEA",
-            detectedPromptType = PromptType.CLASSIC_SPARK
-        )
-    }
-
-    private fun handleLocalCreativeGap(
-        userMessage: String,
-        currentIdea: CreativeGapIdea?,
-        seedPrompt: CreativeGap?,
-        random: Random
-    ): BrainstormResult {
-        val prevDiff = currentIdea?.difficulty ?: seedPrompt?.difficulty ?: Difficulty.MEDIUM
-        var sentence = currentIdea?.gapSentence ?: seedPrompt?.gapSentence ?: "An alchemist accidentally summons a tiny ______ while brewing tea."
-        var style = currentIdea?.style ?: seedPrompt?.style ?: "Storybook Gouache"
-        var challenge = currentIdea?.challenge ?: seedPrompt?.challenge ?: "Warm lighting with soft edges"
-        var suggestions = currentIdea?.gapSuggestions ?: seedPrompt?.displayGapSuggestions ?: listOf("miniature star", "mischievous cloud", "clockwork hummingbird", "glowing spirit")
-        var newDiff = prevDiff
-        var reply = ""
-        var pills = listOf<String>()
-
-        when {
-            userMessage.contains("hard") || userMessage.contains("difficult") || userMessage.contains("challenge") -> {
-                newDiff = Difficulty.HARD
-                challenge = "Render the blank with translucent/glowing materials using only 3 colors"
-                reply = "Added an advanced material constraint! How would you render the texture and luminosity of whatever you draw in the blank?"
-                pills = listOf("Suggest new starters", "Change sentence", "Try Sci-Fi style", "Simplify prompt")
-            }
-            userMessage.contains("twist") || userMessage.contains("suggest") || userMessage.contains("blank") || userMessage.contains("idea") -> {
-                suggestions = listOf("living constellation", "pocket-sized vortex", "crystalline familiar", "singing mechanical orb", "sentient cup of tea")
-                reply = "Here are 5 playful possibilities for the blank `______`! Pick whichever sparks the most curiosity."
-                pills = listOf("Make it harder", "Suggest art style", "Change sentence", "Switch to Classic Spark")
-            }
-            else -> {
-                val pool = listOf(
-                    "A wanderer finds an ancient robot tending a garden of ______ under two moons.",
-                    "An artist paints a door on an alley wall, and a ______ steps out.",
-                    "During a midnight festival, lanterns guide a gentle ______ across the canal.",
-                    "A detective opens a locked safe to find only a glowing ______ inside."
-                )
-                sentence = pool.random(random)
-                suggestions = listOf("starlit bonsai", "whispering compass", "mechanical firefly swarm", "crystallized memory")
-                style = listOf("Textured Gouache & Ink", "Risograph Screenprint", "Luminous Concept Art", "Vintage Woodcut").random(random)
-                challenge = listOf("Focus on silhouette & negative space", "Use a 3-color analogous palette", "Warm rim lighting").random(random)
-                reply = "Here is a fresh Creative Gap prompt! Fill in the blank `______` with whatever unique element you want to bring to life."
-                pills = listOf("Suggest twists for the blank", "Make it harder", "Suggest art style", "Give variations")
-            }
-        }
-
-        val idea = CreativeGapIdea(
-            difficulty = newDiff,
-            gapSentence = sentence,
-            gapSuggestions = suggestions,
-            style = style,
-            challenge = challenge
-        )
-
-        return BrainstormResult.Success(
-            replyText = reply,
-            quickPills = pills,
-            idea = idea,
-            actionType = "GENERATE_IDEA",
-            detectedPromptType = PromptType.CREATIVE_GAP
-        )
     }
 }
